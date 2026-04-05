@@ -1,9 +1,10 @@
 'use client';
 export const dynamic = 'force-dynamic';
 import { useState, useEffect, useCallback } from 'react';
-import { SlidersHorizontal, RefreshCw, X, Heart, ChevronDown, ChevronUp } from 'lucide-react';
+import { SlidersHorizontal, RefreshCw, X, Heart, ChevronDown, ChevronUp, Flag } from 'lucide-react';
 import { Profile, REGIONS, ROLES, getRankTier } from '@/types';
 import ProfileModal from '@/components/profile/ProfileModal';
+import ReportModal from '@/components/ReportModal';
 import Image from 'next/image';
 
 const RANKS_TIERS = ['Any', 'Iron', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Ascendant', 'Immortal', 'Radiant'];
@@ -33,6 +34,7 @@ export default function MatchPage() {
   const [filters, setFilters] = useState<Filters>({ region: '', rank_tier: '', role: '', mic_only: false });
   const [actionLoading, setActionLoading] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
+  const [reportingProfile, setReportingProfile] = useState<Profile | null>(null);
 
   const fetchProfiles = useCallback(async (pageNum: number, currentFilters: Filters) => {
     setLoading(true);
@@ -272,12 +274,21 @@ export default function MatchPage() {
                   )}
                 </div>
               </div>
-              <button
-                onClick={() => setSelectedProfile(currentProfile)}
-                className="text-[#525566] hover:text-[#E8EAF0] transition-colors text-xs font-mono border border-[#2A2D35] px-2 py-1 hover:border-[#525566]"
-              >
-                VIEW
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setReportingProfile(currentProfile)}
+                  className="text-[#525566] hover:text-[#FF4655] transition-colors p-1"
+                  title="Report this player"
+                >
+                  <Flag size={13} />
+                </button>
+                <button
+                  onClick={() => setSelectedProfile(currentProfile)}
+                  className="text-[#525566] hover:text-[#E8EAF0] transition-colors text-xs font-mono border border-[#2A2D35] px-2 py-1 hover:border-[#525566]"
+                >
+                  VIEW
+                </button>
+              </div>
             </div>
 
             {/* Agents */}
@@ -337,6 +348,15 @@ export default function MatchPage() {
           </div>
         </div>
       ) : null}
+
+      {/* Report modal */}
+      {reportingProfile && (
+        <ReportModal
+          reportedProfileId={reportingProfile.id}
+          reportedName={reportingProfile.riot_id ? `${reportingProfile.riot_id}#${reportingProfile.riot_tag}` : 'UNKNOWN'}
+          onClose={() => setReportingProfile(null)}
+        />
+      )}
 
       {/* Profile modal */}
       {selectedProfile && (

@@ -38,6 +38,18 @@ export interface Profile {
   is_online: boolean;
   last_seen: string | null;
   created_at: string;
+  is_admin: boolean;
+  is_banned: boolean;
+}
+
+export interface Report {
+  id: string;
+  reporter_id: string;
+  reported_id: string;
+  reason: string;
+  details: string | null;
+  reviewed: boolean;
+  created_at: string;
 }
 
 export interface MatchRequest {

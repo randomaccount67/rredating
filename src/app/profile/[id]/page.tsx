@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { Target, Music, Calendar } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 import { Profile, getRankTier } from '@/types';
+import ReportButton from '@/components/ReportButton';
 
 function RankBadge({ rank, label }: { rank: string; label: string }) {
   const tier = getRankTier(rank);
@@ -107,11 +108,14 @@ export default async function PublicProfilePage({ params }: { params: { id: stri
         )}
 
         {/* Footer */}
-        <div className="px-6 py-4 flex items-center gap-2 text-[#525566]">
-          <Calendar size={11} />
-          <span className="font-mono text-[10px]">
-            JOINED {new Date(p.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }).toUpperCase()}
-          </span>
+        <div className="px-6 py-4 flex items-center justify-between text-[#525566]">
+          <div className="flex items-center gap-2">
+            <Calendar size={11} />
+            <span className="font-mono text-[10px]">
+              JOINED {new Date(p.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }).toUpperCase()}
+            </span>
+          </div>
+          <ReportButton profileId={p.id} displayName={displayName} />
         </div>
       </div>
     </div>

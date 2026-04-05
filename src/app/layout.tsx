@@ -4,6 +4,7 @@ import { ClerkProvider } from '@clerk/nextjs';
 import './globals.css';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import BannedGate from '@/components/BannedGate';
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://rredating.com';
 
@@ -48,11 +49,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           />
         </head>
         <body className="min-h-screen flex flex-col">
-          <Navbar />
-          <main className="flex-1">
-            {children}
-          </main>
-          <Footer />
+          <BannedGate>
+            <Navbar />
+            <main className="flex-1">
+              {children}
+            </main>
+            <Footer />
+          </BannedGate>
         </body>
       </html>
     </ClerkProvider>
