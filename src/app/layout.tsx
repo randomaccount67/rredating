@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     type: 'website',
   },
   twitter: {
-    card: 'summary_large_image',
+    card: 'summary',
     title: 'RRedating — Find Your Valorant Edate',
     description: 'a (totally not serious) community edating site. find your edate here so you stop dropping your ep 7 immortal buddy in swiftplay',
     images: ['/og-image.png'],
