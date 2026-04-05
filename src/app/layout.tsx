@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import type { Metadata } from 'next';
 import { ClerkProvider } from '@clerk/nextjs';
 import './globals.css';
@@ -19,8 +20,8 @@ export const metadata: Metadata = {
     images: [
       {
         url: '/og-image.png',
-        width: 736,
-        height: 736,
+        width: 1200,
+        height: 630,
         alt: 'RRedating — Find Your Valorant Edate',
       },
     ],
