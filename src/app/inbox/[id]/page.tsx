@@ -1,4 +1,5 @@
 'use client';
+export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
@@ -41,6 +42,35 @@ export default function MessageThreadPage() {
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
+
+  // Maintain presence while viewing this conversation
+  useEffect(() => {
+    if (!params.id) return;
+    const conversationId = params.id as string;
+
+    const ping = () => fetch('/api/presence', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversation_id: conversationId }),
+    });
+
+    ping();
+    const interval = setInterval(ping, 15_000);
+
+    const leave = () => fetch('/api/presence', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversation_id: conversationId }),
+    });
+
+    window.addEventListener('beforeunload', leave);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('beforeunload', leave);
+      leave();
+    };
+  }, [params.id]);
 
   useEffect(() => {
     async function fetchConversation() {

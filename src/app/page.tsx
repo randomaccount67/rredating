@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import Link from 'next/link';
 import { Crosshair, Zap, Users, Lock } from 'lucide-react';
 
@@ -53,11 +54,11 @@ export default function LandingPage() {
         </p>
 
         <div className="flex items-center justify-center gap-4 flex-wrap">
-          <Link href="/match"
+          <Link href="/onboarding"
             className="inline-flex items-center gap-2 bg-[#FF4655] text-white font-bold text-lg uppercase tracking-wider px-8 py-3 hover:bg-[#FF5F6D] transition-colors"
             style={{ fontFamily: 'Barlow Condensed, sans-serif', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>
             <Crosshair size={18} />
-            FIND YOUR DUO
+            SETUP YOUR PROFILE
           </Link>
           <Link href="/match"
             className="inline-flex items-center gap-2 border border-[#2A2D35] text-[#8B8FA8] font-bold text-lg uppercase tracking-wider px-8 py-3 hover:border-[#8B8FA8] hover:text-[#E8EAF0] transition-colors"
@@ -66,22 +67,6 @@ export default function LandingPage() {
           </Link>
         </div>
       </section>
-
-      <div className="border-t border-b border-[#2A2D35] bg-[#13151A]">
-        <div className="max-w-7xl mx-auto px-4 py-4 grid grid-cols-2 sm:grid-cols-4 divide-x divide-[#2A2D35]">
-          {[
-            { value: '100%', label: 'FREE TO USE' },
-            { value: 'ALL RANKS', label: 'IRON TO RADIANT' },
-            { value: '18+', label: 'AGE VERIFIED' },
-            { value: '0', label: 'RIOT AFFILIATION' },
-          ].map((stat) => (
-            <div key={stat.label} className="px-6 py-2 text-center">
-              <div className="font-extrabold text-2xl text-[#FF4655] uppercase" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>{stat.value}</div>
-              <div className="text-[#525566] font-mono text-[10px] tracking-widest uppercase mt-0.5">{stat.label}</div>
-            </div>
-          ))}
-        </div>
-      </div>
 
       <section className="max-w-7xl mx-auto px-4 py-20">
         <div className="mb-12 text-center">
@@ -102,23 +87,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="border-t border-[#2A2D35] bg-[#13151A]">
-        <div className="max-w-4xl mx-auto px-4 py-16 text-center">
-          <h2 className="font-extrabold text-5xl uppercase text-[#E8EAF0] mb-4" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
-            STOP SOLOQUEUEING.<br />
-            <span className="text-[#FF4655]">START SUFFERING TOGETHER.</span>
-          </h2>
-          <p className="text-[#8B8FA8] mb-8 max-w-lg mx-auto">
-            Free. Community-built. Completely unaffiliated with Riot Games.
-            Just vibes and ranked anxiety.
-          </p>
-          <Link href="/onboarding"
-            className="inline-flex items-center gap-2 bg-[#FF4655] text-white font-bold text-xl uppercase tracking-wider px-10 py-4 hover:bg-[#FF5F6D] transition-colors"
-            style={{ fontFamily: 'Barlow Condensed, sans-serif', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>
-            CREATE PROFILE
-          </Link>
-        </div>
-      </section>
     </div>
   );
 }

@@ -18,6 +18,7 @@ export type MusicTag =
 export interface Profile {
   id: string;
   clerk_user_id: string;
+  gender: string | null;
   riot_id: string | null;
   riot_tag: string | null;
   region: Region | null;
@@ -30,6 +31,7 @@ export interface Profile {
   reports_this_act: number;
   // mic_on, avg_acs, reports_this_act kept in type for DB compat but not shown in UI
   music_tags: MusicTag[] | null;
+  favorite_artist: string | null;
   about: string | null;
   avatar_url: string | null;
   confirmed_18: boolean;

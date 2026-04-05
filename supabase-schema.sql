@@ -17,7 +17,9 @@ create table if not exists profiles (
   mic_on boolean default true,
   avg_acs integer,
   reports_this_act integer default 0,
+  gender text,
   music_tags text[],
+  favorite_artist text,
   about text,
   avatar_url text,
   confirmed_18 boolean default false,
@@ -63,6 +65,14 @@ create table if not exists notifications (
   created_at timestamptz default now()
 );
 
+-- Conversation viewers (presence tracking)
+create table if not exists conversation_viewers (
+  user_id uuid references profiles(id) on delete cascade,
+  conversation_id uuid references conversations(id) on delete cascade,
+  last_seen_at timestamptz default now(),
+  primary key (user_id, conversation_id)
+);
+
 -- Passes
 create table if not exists passes (
   from_user uuid references profiles(id) on delete cascade,
@@ -82,6 +92,8 @@ create index if not exists idx_match_requests_to_user on match_requests(to_user)
 create index if not exists idx_messages_conversation_id on messages(conversation_id);
 create index if not exists idx_notifications_user_id on notifications(user_id);
 create index if not exists idx_passes_from_user on passes(from_user);
+create index if not exists idx_conversation_viewers_user_id on conversation_viewers(user_id);
+create index if not exists idx_conversation_viewers_conversation_id on conversation_viewers(conversation_id);
 
 -- ============================================================
 -- ROW LEVEL SECURITY
@@ -92,6 +104,7 @@ alter table conversations enable row level security;
 alter table messages enable row level security;
 alter table notifications enable row level security;
 alter table passes enable row level security;
+alter table conversation_viewers enable row level security;
 
 -- NOTE: Since we use the service role key from the server, RLS policies
 -- primarily enforce constraints for direct client access.
@@ -148,6 +161,14 @@ create policy "Users see own passes" on passes
 
 create policy "Users can insert passes" on passes
   for insert with check (true);
+
+-- CONVERSATION_VIEWERS policies
+create policy "Users can manage their own viewer entries" on conversation_viewers
+  for all using (true);
+
+-- Migrations for existing databases (run these if upgrading):
+-- alter table profiles add column if not exists favorite_artist text;
+-- alter table profiles add column if not exists gender text;
 
 -- ============================================================
 -- REALTIME — enable realtime for messages and notifications

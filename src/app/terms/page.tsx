@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 export default function TermsPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-12">
@@ -36,9 +38,6 @@ export default function TermsPage() {
           </div>
         ))}
 
-        <p className="text-[#525566] font-mono text-xs">
-          Questions? You probably won&apos;t find us but you can try.
-        </p>
       </div>
     </div>
   );

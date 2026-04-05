@@ -123,13 +123,28 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Notify other user
+  // Only notify the other user — never the sender
   const otherUserId = conv.user_a === myProfile.id ? conv.user_b : conv.user_a;
-  await supabase.from('notifications').insert({
-    user_id: otherUserId,
-    type: 'new_message',
-    related_user: myProfile.id,
-  });
+
+  // Safety guard: skip notification entirely if the resolved target is the sender
+  if (otherUserId !== myProfile.id) {
+    const thirtySecondsAgo = new Date(Date.now() - 30_000).toISOString();
+    const { data: viewerEntry } = await supabase
+      .from('conversation_viewers')
+      .select('last_seen_at')
+      .eq('user_id', otherUserId)
+      .eq('conversation_id', conversation_id)
+      .gte('last_seen_at', thirtySecondsAgo)
+      .maybeSingle();
+
+    if (!viewerEntry) {
+      await supabase.from('notifications').insert({
+        user_id: otherUserId,
+        type: 'new_message',
+        related_user: myProfile.id,
+      });
+    }
+  }
 
   return NextResponse.json({ message });
 }

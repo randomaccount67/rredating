@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
 
   const profileData = {
     clerk_user_id: userId,
+    gender: body.gender?.trim() || null,
     riot_id: body.riot_id?.trim() || null,
     riot_tag: body.riot_tag?.trim() || null,
     region: body.region || null,
@@ -53,6 +54,7 @@ export async function POST(req: NextRequest) {
     avg_acs: body.avg_acs ? parseInt(body.avg_acs, 10) : null,
     reports_this_act: body.reports_this_act ? parseInt(body.reports_this_act, 10) : 0,
     music_tags: body.music_tags?.length ? body.music_tags : null,
+    favorite_artist: body.favorite_artist?.trim() || null,
     about: about || null,
     avatar_url: body.avatar_url || null,
     confirmed_18: true,
@@ -87,6 +89,7 @@ export async function PUT(req: NextRequest) {
     .from('profiles')
     .upsert({
       clerk_user_id: userId,
+      gender: body.gender?.trim() || null,
       riot_id: body.riot_id?.trim() || null,
       riot_tag: body.riot_tag?.trim() || null,
       region: body.region || null,
@@ -98,6 +101,7 @@ export async function PUT(req: NextRequest) {
       avg_acs: body.avg_acs ? parseInt(body.avg_acs, 10) : null,
       reports_this_act: body.reports_this_act ? parseInt(body.reports_this_act, 10) : 0,
       music_tags: body.music_tags?.length ? body.music_tags : null,
+      favorite_artist: body.favorite_artist?.trim() || null,
       about: about || null,
       avatar_url: body.avatar_url || null,
       confirmed_18: true,

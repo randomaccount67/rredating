@@ -1,12 +1,18 @@
 'use client';
+export const dynamic = 'force-dynamic';
 import { useState, useEffect, useCallback } from 'react';
-import { useUser } from '@clerk/nextjs';
-import { SlidersHorizontal, RefreshCw } from 'lucide-react';
-import { Profile, RANKS, REGIONS, ROLES } from '@/types';
-import ProfileCard from '@/components/profile/ProfileCard';
+import { SlidersHorizontal, RefreshCw, X, Heart, ChevronDown, ChevronUp } from 'lucide-react';
+import { Profile, REGIONS, ROLES, getRankTier } from '@/types';
 import ProfileModal from '@/components/profile/ProfileModal';
+import Image from 'next/image';
 
 const RANKS_TIERS = ['Any', 'Iron', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Ascendant', 'Immortal', 'Radiant'];
+
+const RANK_COLORS: Record<string, string> = {
+  iron: '#8B8FA8', bronze: '#CD7F32', silver: '#C0C0C0', gold: '#FFD700',
+  platinum: '#00C8FF', diamond: '#A855F7', ascendant: '#22C55E',
+  immortal: '#FF4655', radiant: '#FFE84D',
+};
 
 interface Filters {
   region: string;
@@ -16,8 +22,8 @@ interface Filters {
 }
 
 export default function MatchPage() {
-  const { user } = useUser();
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -25,6 +31,8 @@ export default function MatchPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [requestStatuses, setRequestStatuses] = useState<Record<string, 'pending' | 'matched' | 'declined'>>({});
   const [filters, setFilters] = useState<Filters>({ region: '', rank_tier: '', role: '', mic_only: false });
+  const [actionLoading, setActionLoading] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
 
   const fetchProfiles = useCallback(async (pageNum: number, currentFilters: Filters) => {
     setLoading(true);
@@ -42,6 +50,7 @@ export default function MatchPage() {
       const data = await res.json();
       if (pageNum === 0) {
         setProfiles(data.profiles);
+        setCurrentIndex(0);
       } else {
         setProfiles(prev => [...prev, ...data.profiles]);
       }
@@ -59,7 +68,23 @@ export default function MatchPage() {
     fetchProfiles(0, filters);
   }, [filters, fetchProfiles]);
 
+  // Load more when approaching the end
+  useEffect(() => {
+    if (profiles.length > 0 && currentIndex >= profiles.length - 3 && hasMore && !loading) {
+      const nextPage = page + 1;
+      setPage(nextPage);
+      fetchProfiles(nextPage, filters);
+    }
+  }, [currentIndex, profiles.length, hasMore, loading, page, filters, fetchProfiles]);
+
+  const advance = () => {
+    setShowAbout(false);
+    setCurrentIndex(prev => prev + 1);
+  };
+
   const handleSendRequest = async (profileId: string) => {
+    if (actionLoading) return;
+    setActionLoading(true);
     try {
       const res = await fetch('/api/match', {
         method: 'POST',
@@ -72,24 +97,34 @@ export default function MatchPage() {
       }
     } catch (e) {
       console.error(e);
+    } finally {
+      setActionLoading(false);
+      advance();
     }
   };
 
   const handlePass = async (profileId: string) => {
+    if (actionLoading) return;
+    setActionLoading(true);
     try {
       await fetch('/api/match/pass', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to_user_profile_id: profileId }),
       });
-      setProfiles(prev => prev.filter(p => p.id !== profileId));
     } catch (e) {
       console.error(e);
+    } finally {
+      setActionLoading(false);
+      advance();
     }
   };
 
+  const currentProfile = profiles[currentIndex] ?? null;
+  const isDone = !loading && currentIndex >= profiles.length;
+
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
+    <div className="max-w-2xl mx-auto px-4 py-8">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -165,53 +200,143 @@ export default function MatchPage() {
         </div>
       )}
 
-      {/* Grid */}
+      {/* Card area */}
       {loading && profiles.length === 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="bg-[#1A1D24] border border-[#2A2D35] h-64 animate-pulse"
-              style={{ clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }} />
-          ))}
-        </div>
-      ) : profiles.length === 0 ? (
+        <div className="bg-[#1A1D24] border border-[#2A2D35] h-[480px] animate-pulse"
+          style={{ clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%)' }} />
+      ) : isDone ? (
         <div className="text-center py-24">
           <p className="font-extrabold text-3xl uppercase text-[#2A2D35]" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
-            NO PLAYERS FOUND
+            NO MORE PLAYERS
           </p>
-          <p className="text-[#525566] text-sm mt-2 font-mono">Try adjusting your filters</p>
+          <p className="text-[#525566] text-sm mt-2 font-mono">adjust your filters or check back later</p>
+          <button
+            onClick={() => { setPage(0); fetchProfiles(0, filters); }}
+            className="mt-6 btn-ghost text-xs"
+          >
+            <RefreshCw size={12} className="inline mr-1" /> REFRESH
+          </button>
         </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {profiles.map(profile => (
-              <ProfileCard
-                key={profile.id}
-                profile={profile}
-                onSendRequest={handleSendRequest}
-                onPass={handlePass}
-                onViewProfile={setSelectedProfile}
-                requestStatus={requestStatuses[profile.id] ?? null}
+      ) : currentProfile ? (
+        <div className="bg-[#1A1D24] border border-[#2A2D35]"
+          style={{ clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%)' }}>
+
+          {/* Avatar */}
+          <div className="relative w-full aspect-square bg-[#13151A] overflow-hidden"
+            style={{ maxHeight: '340px' }}>
+            {currentProfile.avatar_url ? (
+              <Image
+                src={currentProfile.avatar_url}
+                alt={currentProfile.riot_id ?? ''}
+                fill
+                className="object-cover"
               />
-            ))}
+            ) : (
+              <div className="w-full h-full flex items-center justify-center font-extrabold text-8xl text-[#2A2D35]"
+                style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                {currentProfile.riot_id?.[0]?.toUpperCase() ?? '?'}
+              </div>
+            )}
+            {/* Region badge */}
+            {currentProfile.region && (
+              <div className="absolute top-3 right-3 bg-[#13151A]/80 border border-[#2A2D35] px-2 py-0.5">
+                <span className="font-mono text-[10px] text-[#8B8FA8]">{currentProfile.region}</span>
+              </div>
+            )}
           </div>
 
-          {hasMore && (
-            <div className="mt-8 text-center">
+          {/* Info */}
+          <div className="p-5">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <h2 className="font-extrabold text-2xl uppercase text-[#E8EAF0]"
+                  style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                  {currentProfile.riot_id ?? 'UNKNOWN'}
+                  <span className="text-[#525566] font-normal text-lg ml-1">#{currentProfile.riot_tag}</span>
+                </h2>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  {currentProfile.current_rank && (
+                    <span className="font-mono text-xs px-2 py-0.5 border"
+                      style={{
+                        color: RANK_COLORS[getRankTier(currentProfile.current_rank)] ?? '#8B8FA8',
+                        borderColor: RANK_COLORS[getRankTier(currentProfile.current_rank)] ?? '#2A2D35',
+                        backgroundColor: `${RANK_COLORS[getRankTier(currentProfile.current_rank)] ?? '#8B8FA8'}15`,
+                      }}>
+                      {currentProfile.current_rank}
+                    </span>
+                  )}
+                  {currentProfile.role && (
+                    <span className="font-mono text-xs text-[#8B8FA8] border border-[#2A2D35] px-2 py-0.5">
+                      {currentProfile.role}
+                    </span>
+                  )}
+                </div>
+              </div>
               <button
-                onClick={() => {
-                  const nextPage = page + 1;
-                  setPage(nextPage);
-                  fetchProfiles(nextPage, filters);
-                }}
-                disabled={loading}
-                className="btn-outline px-8 py-3 text-sm"
+                onClick={() => setSelectedProfile(currentProfile)}
+                className="text-[#525566] hover:text-[#E8EAF0] transition-colors text-xs font-mono border border-[#2A2D35] px-2 py-1 hover:border-[#525566]"
               >
-                {loading ? 'LOADING...' : 'LOAD MORE'}
+                VIEW
               </button>
             </div>
-          )}
-        </>
-      )}
+
+            {/* Agents */}
+            {currentProfile.agents && currentProfile.agents.length > 0 && (
+              <div className="flex flex-wrap gap-1 mb-3">
+                {currentProfile.agents.map(a => (
+                  <span key={a} className="font-mono text-[10px] text-[#525566] border border-[#2A2D35] px-1.5 py-0.5">{a}</span>
+                ))}
+              </div>
+            )}
+
+            {/* About toggle */}
+            {currentProfile.about && (
+              <div className="mb-4">
+                <button
+                  onClick={() => setShowAbout(v => !v)}
+                  className="flex items-center gap-1 text-[#525566] hover:text-[#8B8FA8] font-mono text-[10px] transition-colors"
+                >
+                  {showAbout ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                  {showAbout ? 'HIDE BIO' : 'SHOW BIO'}
+                </button>
+                {showAbout && (
+                  <p className="text-[#8B8FA8] text-xs mt-2 leading-relaxed border-l-2 border-[#2A2D35] pl-3">
+                    {currentProfile.about}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Action buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => handlePass(currentProfile.id)}
+                disabled={actionLoading}
+                className="flex-1 flex items-center justify-center gap-2 py-3 border border-[#2A2D35] text-[#8B8FA8] hover:border-[#525566] hover:text-[#E8EAF0] transition-all font-bold text-sm uppercase tracking-wider disabled:opacity-50"
+                style={{ fontFamily: 'Barlow Condensed, sans-serif', clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}
+              >
+                <X size={16} /> PASS
+              </button>
+              <button
+                onClick={() => handleSendRequest(currentProfile.id)}
+                disabled={actionLoading || !!requestStatuses[currentProfile.id]}
+                className="flex-1 flex items-center justify-center gap-2 py-3 bg-[#FF4655] text-white hover:bg-[#FF5F6D] transition-all font-bold text-sm uppercase tracking-wider disabled:opacity-50"
+                style={{ fontFamily: 'Barlow Condensed, sans-serif', clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}
+              >
+                <Heart size={16} />
+                {requestStatuses[currentProfile.id] === 'matched' ? 'MATCHED' :
+                 requestStatuses[currentProfile.id] === 'pending' ? 'REQUESTED' :
+                 'SEND REQUEST'}
+              </button>
+            </div>
+
+            {/* Progress indicator */}
+            <p className="text-center font-mono text-[9px] text-[#2A2D35] mt-3">
+              {currentIndex + 1} / {profiles.length}{hasMore ? '+' : ''}
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       {/* Profile modal */}
       {selectedProfile && (

@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { AlertTriangle } from 'lucide-react';
 
 export default function DisclaimerPage() {
@@ -31,8 +32,7 @@ export default function DisclaimerPage() {
           </h2>
           <p>
             Valorant™, Riot Games™, and all related marks, logos, and character names are trademarks or registered
-            trademarks of Riot Games, Inc. RRedating does not use any official Riot Games assets, logos, or
-            intellectual property. All rank names and game terminology are used for descriptive purposes only.
+            trademarks of Riot Games, Inc.
           </p>
         </div>
 
@@ -52,9 +52,8 @@ export default function DisclaimerPage() {
             NO OFFICIAL DATA
           </h2>
           <p>
-            All player data on RRedating (ranks, ACS, Riot IDs) is entirely self-reported. We do not access
+            All player data on RRedating is entirely self-reported. We do not access
             the Riot Games API, and we cannot verify any claims users make about their in-game statistics.
-            The honor system is... well, it's on your honor.
           </p>
         </div>
 

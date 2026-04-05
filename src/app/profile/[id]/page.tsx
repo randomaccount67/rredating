@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
 import { Target, Music, Calendar } from 'lucide-react';

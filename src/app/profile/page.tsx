@@ -1,12 +1,15 @@
 'use client';
+export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
 import { Upload, Save, Check, AlertTriangle } from 'lucide-react';
 import { RANKS, REGIONS, ROLES, MUSIC_TAGS, AGENTS, Profile } from '@/types';
 
 export default function ProfilePage() {
   const { user } = useUser();
+  const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -17,8 +20,10 @@ export default function ProfilePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
+    gender: '', gender_other: '',
     riot_id: '', riot_tag: '', region: '', peak_rank: '', current_rank: '',
     role: '', agents: [] as string[], music_tags: [] as string[], about: '',
+    favorite_artist: '',
   });
 
   useEffect(() => {
@@ -29,7 +34,11 @@ export default function ProfilePage() {
           const data = await res.json();
           if (data.profile) {
             setProfile(data.profile);
+            const storedGender = data.profile.gender ?? '';
+            const isCustomGender = storedGender && !['Male', 'Female', 'Other'].includes(storedGender);
             setForm({
+              gender: isCustomGender ? 'Other' : storedGender,
+              gender_other: isCustomGender ? storedGender : '',
               riot_id: data.profile.riot_id ?? '',
               riot_tag: data.profile.riot_tag ?? '',
               region: data.profile.region ?? '',
@@ -39,7 +48,11 @@ export default function ProfilePage() {
               agents: data.profile.agents ?? [],
               music_tags: data.profile.music_tags ?? [],
               about: data.profile.about ?? '',
+              favorite_artist: data.profile.favorite_artist ?? '',
             });
+          } else {
+            router.replace('/onboarding');
+            return;
           }
         }
       } catch (e) {
@@ -85,10 +98,14 @@ export default function ProfilePage() {
           avatar_url = url;
         }
       }
+      const resolvedGender = form.gender === 'Other'
+        ? (form.gender_other.trim() || 'Other')
+        : form.gender || null;
+
       const res = await fetch('/api/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, avatar_url }),
+        body: JSON.stringify({ ...form, gender: resolvedGender, avatar_url }),
       });
       if (!res.ok) throw new Error('Save failed');
       setSaved(true);
@@ -150,6 +167,26 @@ export default function ProfilePage() {
         <div className="bg-[#1A1D24] border border-[#2A2D35] p-6"
           style={{ clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>
           <label className="label block mb-4">IDENTITY</label>
+          <div className="mb-4">
+            <label className="label block mb-2">GENDER</label>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {['Male', 'Female', 'Other'].map(g => (
+                <button key={g} type="button" onClick={() => set('gender', g)}
+                  className={`px-4 py-1.5 text-xs font-mono border transition-all ${form.gender === g ? 'border-[#FF4655] bg-[#FF4655]/10 text-[#FF4655]' : 'border-[#2A2D35] text-[#8B8FA8] hover:border-[#525566]'}`}>
+                  {g}
+                </button>
+              ))}
+            </div>
+            {form.gender === 'Other' && (
+              <input
+                className="w-full bg-[#13151A] border border-[#2A2D35] px-3 py-2 text-sm focus:border-[#FF4655] outline-none font-mono"
+                placeholder="describe yourself"
+                value={form.gender_other}
+                onChange={e => set('gender_other', e.target.value)}
+                maxLength={50}
+              />
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
               <label className="label block mb-2">RIOT ID</label>
@@ -242,6 +279,16 @@ export default function ProfilePage() {
                 </button>
               ))}
             </div>
+          </div>
+          <div className="mb-4">
+            <label className="label block mb-2">FAVORITE ARTIST</label>
+            <input
+              className="w-full bg-[#13151A] border border-[#2A2D35] px-3 py-2 text-sm focus:border-[#FF4655] outline-none font-mono"
+              value={form.favorite_artist}
+              onChange={e => set('favorite_artist', e.target.value)}
+              placeholder="who are you listening to"
+              maxLength={100}
+            />
           </div>
           <div>
             <label className="label block mb-2">ABOUT (280 CHARS)</label>

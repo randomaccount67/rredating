@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 export default function PrivacyPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-12">
@@ -40,10 +42,6 @@ export default function PrivacyPage() {
           {
             title: '8. MINORS',
             content: 'RRedating is strictly for users 18 and older. We do not knowingly collect data from anyone under 18. If we discover a minor has created an account, it will be immediately terminated.'
-          },
-          {
-            title: '9. CONTACT',
-            content: 'This is a community project. If you have privacy concerns, feel free to delete your account and stop using the service.'
           },
         ].map(section => (
           <div key={section.title}>

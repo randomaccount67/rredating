@@ -1,9 +1,14 @@
 'use client';
+export const dynamic = 'force-dynamic';
 import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
 import { Upload, Check, ChevronRight, ChevronLeft, AlertTriangle } from 'lucide-react';
 import { RANKS, REGIONS, ROLES, MUSIC_TAGS, AGENTS } from '@/types';
+
+function getRankIndex(rank: string): number {
+  return RANKS.indexOf(rank as typeof RANKS[number]);
+}
 
 const STEPS = ['IDENTITY', 'RANK', 'PLAYSTYLE', 'PERSONALITY', 'LEGAL'];
 
@@ -18,6 +23,8 @@ export default function OnboardingPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
+    gender: '',
+    gender_other: '',
     riot_id: '',
     riot_tag: '',
     region: '',
@@ -26,6 +33,7 @@ export default function OnboardingPage() {
     role: '',
     agents: [] as string[],
     music_tags: [] as string[],
+    favorite_artist: '',
     about: '',
     confirmed_18: false,
   });
@@ -54,6 +62,9 @@ export default function OnboardingPage() {
   const handleSubmit = async () => {
     if (!form.confirmed_18) { setError('You must confirm you are 18+.'); return; }
     if (!form.riot_id || !form.riot_tag) { setError('Riot ID required.'); return; }
+    if (form.current_rank && form.peak_rank && getRankIndex(form.current_rank) > getRankIndex(form.peak_rank)) {
+      setError('Current rank cannot be higher than peak rank.'); setStep(1); return;
+    }
 
     setSubmitting(true);
     setError('');
@@ -71,10 +82,14 @@ export default function OnboardingPage() {
         }
       }
 
+      const resolvedGender = form.gender === 'Other'
+        ? (form.gender_other.trim() || 'Other')
+        : form.gender || null;
+
       const res = await fetch('/api/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, avatar_url }),
+        body: JSON.stringify({ ...form, gender: resolvedGender, avatar_url }),
       });
 
       if (!res.ok) {
@@ -111,12 +126,36 @@ export default function OnboardingPage() {
         <p className="label mt-1">MAX 8MB · IMAGES ONLY</p>
       </div>
 
+      <div>
+        <label className="label block mb-2">GENDER</label>
+        <div className="flex flex-wrap gap-2 mb-2">
+          {['Male', 'Female', 'Other'].map(g => (
+            <button
+              key={g} type="button"
+              onClick={() => set('gender', g)}
+              className={`px-4 py-2 text-xs font-mono border transition-all ${form.gender === g ? 'border-[#FF4655] bg-[#FF4655]/10 text-[#FF4655]' : 'border-[#2A2D35] text-[#8B8FA8] hover:border-[#525566]'}`}
+            >
+              {g}
+            </button>
+          ))}
+        </div>
+        {form.gender === 'Other' && (
+          <input
+            className="w-full bg-[#13151A] border border-[#2A2D35] px-3 py-2 text-sm focus:border-[#FF4655] outline-none font-mono"
+            placeholder="describe yourself"
+            value={form.gender_other}
+            onChange={e => set('gender_other', e.target.value)}
+            maxLength={50}
+          />
+        )}
+      </div>
+
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="label block mb-2">RIOT ID *</label>
           <input
             className="w-full bg-[#13151A] border border-[#2A2D35] px-3 py-2 text-sm focus:border-[#FF4655] outline-none font-mono"
-            placeholder="REYNA"
+            placeholder="i miss her"
             value={form.riot_id}
             onChange={e => set('riot_id', e.target.value)}
           />
@@ -125,7 +164,7 @@ export default function OnboardingPage() {
           <label className="label block mb-2">TAG *</label>
           <input
             className="w-full bg-[#13151A] border border-[#2A2D35] px-3 py-2 text-sm focus:border-[#FF4655] outline-none font-mono"
-            placeholder="FRAG"
+            placeholder="smurf"
             value={form.riot_tag}
             onChange={e => set('riot_tag', e.target.value)}
           />
@@ -150,6 +189,7 @@ export default function OnboardingPage() {
 
     // Step 1: Rank
     <div key="rank" className="space-y-6">
+      <p className="font-mono text-[10px] text-[#FF4655] tracking-widest uppercase">larpers will be executed on sight</p>
       <div>
         <label className="label block mb-2">PEAK RANK</label>
         <select
@@ -164,13 +204,20 @@ export default function OnboardingPage() {
       <div>
         <label className="label block mb-2">CURRENT RANK</label>
         <select
-          className="w-full bg-[#13151A] border border-[#2A2D35] px-3 py-2 text-sm focus:border-[#FF4655] outline-none font-mono text-[#E8EAF0]"
+          className={`w-full bg-[#13151A] border px-3 py-2 text-sm focus:border-[#FF4655] outline-none font-mono text-[#E8EAF0] ${
+            form.current_rank && form.peak_rank && getRankIndex(form.current_rank) > getRankIndex(form.peak_rank)
+              ? 'border-[#FF4655]'
+              : 'border-[#2A2D35]'
+          }`}
           value={form.current_rank}
           onChange={e => set('current_rank', e.target.value)}
         >
           <option value="">-- SELECT --</option>
           {RANKS.map(r => <option key={r} value={r}>{r}</option>)}
         </select>
+        {form.current_rank && form.peak_rank && getRankIndex(form.current_rank) > getRankIndex(form.peak_rank) && (
+          <p className="font-mono text-[10px] text-[#FF4655] mt-1">current rank cannot be higher than peak rank</p>
+        )}
       </div>
     </div>,
 
@@ -225,6 +272,16 @@ export default function OnboardingPage() {
             </button>
           ))}
         </div>
+      </div>
+      <div>
+        <label className="label block mb-2">FAVORITE ARTIST</label>
+        <input
+          className="w-full bg-[#13151A] border border-[#2A2D35] px-3 py-2 text-sm focus:border-[#FF4655] outline-none font-mono"
+          placeholder="who are you listening to"
+          value={form.favorite_artist}
+          onChange={e => set('favorite_artist', e.target.value)}
+          maxLength={100}
+        />
       </div>
 
       <div>
