@@ -4,10 +4,34 @@ import './globals.css';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://rredating.com';
+
 export const metadata: Metadata = {
-  title: 'RRedating — Find Your Valorant Duo',
-  description: 'Community duo-finder for Valorant players. NOT affiliated with or endorsed by Riot Games. 18+ only. For entertainment purposes.',
+  title: 'RRedating — Find Your Valorant Edate',
+  description: 'a (totally not serious) community edating site. find your edate here so you stop dropping your ep 7 immortal buddy in swiftplay',
+  metadataBase: new URL(siteUrl),
   robots: 'noindex',
+  openGraph: {
+    title: 'RRedating — Find Your Valorant Edate',
+    description: 'a (totally not serious) community edating site. find your edate here so you stop dropping your ep 7 immortal buddy in swiftplay',
+    url: siteUrl,
+    siteName: 'RRedating',
+    images: [
+      {
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'RRedating — Find Your Valorant Edate',
+      },
+    ],
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'RRedating — Find Your Valorant Edate',
+    description: 'a (totally not serious) community edating site. find your edate here so you stop dropping your ep 7 immortal buddy in swiftplay',
+    images: ['/og-image.png'],
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
