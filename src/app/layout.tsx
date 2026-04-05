@@ -19,8 +19,8 @@ export const metadata: Metadata = {
     images: [
       {
         url: '/og-image.png',
-        width: 1200,
-        height: 630,
+        width: 736,
+        height: 736,
         alt: 'RRedating — Find Your Valorant Edate',
       },
     ],
