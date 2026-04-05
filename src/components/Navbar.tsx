@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { UserButton, useUser } from '@clerk/nextjs';
-import { Bell, MessageSquare, Users, User, MessageCircle, X } from 'lucide-react';
+import { Bell, MessageSquare, Users, User, MessageCircle, X, Shield } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
@@ -10,6 +10,7 @@ export default function Navbar() {
   const pathname = usePathname();
   const { isSignedIn } = useUser();
   const [unreadNotifs, setUnreadNotifs] = useState(0);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [complainOpen, setComplainOpen] = useState(false);
 
   useEffect(() => {
@@ -25,6 +26,10 @@ export default function Navbar() {
     }
 
     fetchUnread();
+
+    fetch('/api/profile').then(r => r.json()).then(d => {
+      if (d.profile?.is_admin) setIsAdmin(true);
+    }).catch(() => {});
 
     const channel = supabase
       .channel('navbar-notifs')
@@ -67,6 +72,20 @@ export default function Navbar() {
 
           {/* Nav links — center */}
           <div className="flex items-center justify-center gap-1">
+            {isSignedIn && isAdmin && (
+              <Link
+                href="/admin"
+                className={`relative flex items-center gap-1.5 px-3 py-2 text-xs font-bold tracking-wider uppercase transition-all duration-150
+                  ${pathname.startsWith('/admin')
+                    ? 'text-[#FF4655] border-b border-[#FF4655]'
+                    : 'text-amber-400 hover:text-amber-300'
+                  }`}
+                style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
+              >
+                <Shield size={14} />
+                <span className="hidden sm:inline">ADMIN</span>
+              </Link>
+            )}
             {isSignedIn && navLinks.map((link) => {
               const active = pathname.startsWith(link.href);
               return (

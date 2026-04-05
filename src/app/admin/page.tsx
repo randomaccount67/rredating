@@ -2,7 +2,7 @@
 export const dynamic = 'force-dynamic';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Shield, Flag, Ban, ChevronRight, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Shield, Flag, Ban, ChevronRight, CheckCircle, AlertTriangle, MessageSquare, X } from 'lucide-react';
 
 interface AdminUser {
   id: string;
@@ -48,6 +48,8 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [viewingMessages, setViewingMessages] = useState<{ report: AdminReport; messages: { id: string; sender_id: string; content: string; created_at: string }[] } | null>(null);
+  const [msgLoading, setMsgLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -108,6 +110,21 @@ export default function AdminPage() {
       setError('Action failed.');
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const viewConversation = async (report: AdminReport) => {
+    setMsgLoading(true);
+    setViewingMessages({ report, messages: [] });
+    try {
+      const res = await fetch(`/api/admin/conversation?user_a=${report.reporter_id}&user_b=${report.reported_id}`);
+      const d = await res.json();
+      setViewingMessages({ report, messages: d.messages ?? [] });
+    } catch {
+      setError('Failed to load messages.');
+      setViewingMessages(null);
+    } finally {
+      setMsgLoading(false);
     }
   };
 
@@ -175,6 +192,12 @@ export default function AdminPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => viewConversation(r)}
+                    className="font-mono text-[10px] text-[#8B8FA8] hover:text-[#E8EAF0] border border-[#2A2D35] px-2 py-1 transition-colors flex items-center gap-1"
+                  >
+                    <MessageSquare size={10} /> MSGS
+                  </button>
                   <button
                     onClick={() => {
                       const u = users.find(u => u.id === r.reported_id);
@@ -342,15 +365,23 @@ export default function AdminPage() {
                             <p className="text-[#8B8FA8] text-[11px] mt-1 leading-relaxed">{r.details}</p>
                           )}
                         </div>
-                        {!r.reviewed && (
+                        <div className="flex-shrink-0 flex flex-col gap-1">
                           <button
-                            onClick={() => handleMarkReviewed(r.id)}
-                            disabled={actionLoading === r.id}
-                            className="flex-shrink-0 font-mono text-[9px] text-[#525566] hover:text-green-400 border border-[#2A2D35] px-2 py-1 transition-colors disabled:opacity-50"
+                            onClick={() => viewConversation(r)}
+                            className="font-mono text-[9px] text-[#8B8FA8] hover:text-[#E8EAF0] border border-[#2A2D35] px-2 py-1 transition-colors flex items-center gap-1"
                           >
-                            REVIEWED
+                            <MessageSquare size={9} /> MSGS
                           </button>
-                        )}
+                          {!r.reviewed && (
+                            <button
+                              onClick={() => handleMarkReviewed(r.id)}
+                              disabled={actionLoading === r.id}
+                              className="font-mono text-[9px] text-[#525566] hover:text-green-400 border border-[#2A2D35] px-2 py-1 transition-colors disabled:opacity-50"
+                            >
+                              REVIEWED
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -360,6 +391,71 @@ export default function AdminPage() {
           )}
         </div>
       </div>
+      {/* Message viewer modal */}
+      {viewingMessages && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4" onClick={() => setViewingMessages(null)}>
+          <div className="absolute inset-0 bg-black/80" />
+          <div
+            className="relative bg-[#1A1D24] border border-[#2A2D35] w-full max-w-lg max-h-[80vh] flex flex-col"
+            style={{ clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[#2A2D35] flex-shrink-0">
+              <div>
+                <div className="flex items-center gap-2">
+                  <MessageSquare size={12} className="text-[#525566]" />
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-[#8B8FA8]">Conversation Log</span>
+                </div>
+                <p className="font-mono text-[9px] text-[#525566] mt-0.5">
+                  {displayName(viewingMessages.report.reporter)} → {displayName(viewingMessages.report.reported)}
+                  <span className="ml-2 text-[#FF4655]">({viewingMessages.report.reason})</span>
+                </p>
+              </div>
+              <button onClick={() => setViewingMessages(null)} className="text-[#525566] hover:text-[#E8EAF0] transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+              {msgLoading ? (
+                <div className="space-y-2">
+                  {[1,2,3].map(i => <div key={i} className="h-10 bg-[#13151A] animate-pulse" />)}
+                </div>
+              ) : viewingMessages.messages.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="font-mono text-[10px] text-[#525566]">No conversation found between these users.</p>
+                </div>
+              ) : (
+                viewingMessages.messages.map(msg => {
+                  const isReporter = msg.sender_id === viewingMessages.report.reporter_id;
+                  return (
+                    <div key={msg.id} className={`flex flex-col ${isReporter ? 'items-start' : 'items-end'}`}>
+                      <span className="font-mono text-[8px] text-[#525566] mb-0.5 px-1">
+                        {isReporter ? displayName(viewingMessages.report.reporter) : displayName(viewingMessages.report.reported)}
+                      </span>
+                      <div
+                        className={`max-w-xs px-3 py-2 text-xs ${
+                          isReporter
+                            ? 'bg-[#13151A] border border-[#2A2D35] text-[#E8EAF0]'
+                            : 'bg-[#FF4655]/10 border border-[#FF4655]/20 text-[#E8EAF0]'
+                        }`}
+                        style={{ clipPath: 'polygon(0 0, calc(100% - 5px) 0, 100% 5px, 100% 100%, 0 100%)' }}
+                      >
+                        <p className="break-words">{msg.content}</p>
+                        <p className="font-mono text-[9px] text-[#525566] mt-1">
+                          {new Date(msg.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

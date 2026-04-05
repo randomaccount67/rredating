@@ -5,7 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Send, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { Send, ArrowLeft, AlertTriangle, Flag } from 'lucide-react';
+import ReportModal from '@/components/ReportModal';
 import { createClient } from '@/lib/supabase/client';
 
 interface Message {
@@ -36,6 +37,7 @@ export default function MessageThreadPage() {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const [showReport, setShowReport] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -169,11 +171,26 @@ export default function MessageThreadPage() {
             </div>
           )}
         </div>
-        <div>
+        <div className="flex-1">
           <p className="font-mono text-sm text-[#E8EAF0]">{otherName}</p>
           <p className="label text-[8px] text-green-400">MATCHED DUO</p>
         </div>
+        <button
+          onClick={() => setShowReport(true)}
+          className="text-[#525566] hover:text-[#FF4655] transition-colors p-1"
+          title="Report this user"
+        >
+          <Flag size={14} />
+        </button>
       </div>
+
+      {showReport && (
+        <ReportModal
+          reportedProfileId={data.other_user.id}
+          reportedName={otherName}
+          onClose={() => setShowReport(false)}
+        />
+      )}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto space-y-3 mb-4 pr-1">
