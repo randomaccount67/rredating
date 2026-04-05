@@ -1,0 +1,195 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Barlow+Condensed:wght@400;500;600;700;800&family=Share+Tech+Mono&display=swap');
+
+:root {
+  --bg-primary: #0F1013;
+  --bg-secondary: #13151A;
+  --bg-card: #1A1D24;
+  --bg-elevated: #1E2128;
+  --border: #2A2D35;
+  --border-accent: #FF4655;
+  --accent: #FF4655;
+  --accent-dim: rgba(255, 70, 85, 0.15);
+  --accent-hover: #FF5F6D;
+  --text-primary: #E8EAF0;
+  --text-secondary: #8B8FA8;
+  --text-muted: #525566;
+  --text-mono: #A8FFBD;
+  --online: #22C55E;
+  --offline: #525566;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 500;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Rank badge colors */
+.rank-iron { background: #4A4A4A; color: #B0B0B0; }
+.rank-bronze { background: #7C4D1E; color: #D4A97A; }
+.rank-silver { background: #3D4B5C; color: #9BB3C8; }
+.rank-gold { background: #5C4A00; color: #FFD700; }
+.rank-platinum { background: #004A4A; color: #00E5E5; }
+.rank-diamond { background: #1A0066; color: #A78BFA; }
+.rank-ascendant { background: #003300; color: #4ADE80; }
+.rank-immortal { background: #3D0010; color: #FF6B8A; }
+.rank-radiant { background: #3D3000; color: #FFDB4D; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--bg-secondary); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+/* Selection */
+::selection { background: var(--accent-dim); color: var(--accent); }
+
+/* Input base */
+input, textarea, select {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 500;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+input:focus, textarea:focus, select:focus {
+  border-color: var(--accent);
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--text-muted);
+}
+
+/* Mono text */
+.mono {
+  font-family: 'Share Tech Mono', monospace;
+}
+
+/* Tactical uppercase */
+.tactical {
+  font-family: 'Barlow Condensed', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* Corner decoration */
+.corner-clip {
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+}
+
+.corner-clip-sm {
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+}
+
+/* Animated border */
+@keyframes pulse-border {
+  0%, 100% { border-color: var(--accent); }
+  50% { border-color: transparent; }
+}
+
+.animate-pulse-border {
+  animation: pulse-border 2s ease-in-out infinite;
+}
+
+/* Scan line effect */
+@keyframes scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+/* Fade in */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease forwards;
+}
+
+/* Glitch flicker */
+@keyframes flicker {
+  0%, 95%, 100% { opacity: 1; }
+  96% { opacity: 0.8; }
+  97% { opacity: 1; }
+  98% { opacity: 0.6; }
+}
+
+.animate-flicker {
+  animation: flicker 4s ease-in-out infinite;
+}
+
+/* Custom button base */
+.btn-primary {
+  @apply tactical font-bold text-sm px-4 py-2 border border-[#FF4655] bg-[#FF4655] text-white transition-all duration-150;
+  clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%);
+}
+.btn-primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.btn-outline {
+  @apply tactical font-bold text-sm px-4 py-2 border border-[#FF4655] text-[#FF4655] bg-transparent transition-all duration-150;
+  clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%);
+}
+.btn-outline:hover {
+  background: var(--accent-dim);
+}
+
+.btn-ghost {
+  @apply tactical font-bold text-sm px-4 py-2 border border-[#2A2D35] text-[#8B8FA8] bg-transparent transition-all duration-150;
+  clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%);
+}
+.btn-ghost:hover {
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
+}
+
+/* Card */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+}
+
+.card-elevated {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+}
+
+/* Label */
+.label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Noise overlay for depth */
+.noise-overlay::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  opacity: 0.04;
+}
