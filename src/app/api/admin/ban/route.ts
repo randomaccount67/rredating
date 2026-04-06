@@ -23,6 +23,32 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = createServiceClient();
+
+  // Get the requesting admin's own profile ID
+  const { data: adminProfile } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('clerk_user_id', userId)
+    .single();
+
+  if (!adminProfile) return NextResponse.json({ error: 'Admin profile not found' }, { status: 404 });
+
+  // Prevent self-ban
+  if (adminProfile.id === profile_id) {
+    return NextResponse.json({ error: 'Cannot ban yourself' }, { status: 400 });
+  }
+
+  // Prevent banning other admins
+  const { data: target } = await supabase
+    .from('profiles')
+    .select('is_admin')
+    .eq('id', profile_id)
+    .single();
+
+  if (target?.is_admin) {
+    return NextResponse.json({ error: 'Cannot ban another admin' }, { status: 400 });
+  }
+
   const { error } = await supabase
     .from('profiles')
     .update({ is_banned: ban })
