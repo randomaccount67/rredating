@@ -92,7 +92,7 @@ export default function MessageThreadPage() {
   }, [params.id, router]);
 
   useEffect(() => {
-    if (!data) return;
+    if (!params.id) return;
     const supabase = createClient();
     const channel = supabase
       .channel(`messages-${params.id}`)
@@ -102,6 +102,7 @@ export default function MessageThreadPage() {
         table: 'messages',
         filter: `conversation_id=eq.${params.id}`,
       }, (payload) => {
+        // Use functional update — no dependency on data in scope
         setData(prev => prev ? {
           ...prev,
           messages: [...prev.messages, payload.new as Message],
@@ -111,7 +112,7 @@ export default function MessageThreadPage() {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [data, params.id, scrollToBottom]);
+  }, [params.id, scrollToBottom]); // data removed — was causing re-subscription on every message
 
   useEffect(() => {
     scrollToBottom();

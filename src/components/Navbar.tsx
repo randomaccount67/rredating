@@ -17,12 +17,16 @@ export default function Navbar() {
     if (!isSignedIn) return;
     const supabase = createClient();
 
+    // Fetch via API — anon Supabase client has no Clerk auth context so
+    // direct queries return wrong results (auth.uid() is null in RLS)
     async function fetchUnread() {
-      const { count } = await supabase
-        .from('notifications')
-        .select('*', { count: 'exact', head: true })
-        .eq('read', false);
-      setUnreadNotifs(count ?? 0);
+      try {
+        const res = await fetch('/api/notifications');
+        if (!res.ok) return;
+        const data = await res.json();
+        const unread = (data.notifications ?? []).filter((n: { read: boolean }) => !n.read).length;
+        setUnreadNotifs(unread);
+      } catch {}
     }
 
     fetchUnread();
@@ -31,6 +35,7 @@ export default function Navbar() {
       if (d.profile?.is_admin) setIsAdmin(true);
     }).catch(() => {});
 
+    // Realtime channel acts as a push trigger — any notification change refetches from API
     const channel = supabase
       .channel('navbar-notifs')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, fetchUnread)
