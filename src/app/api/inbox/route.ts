@@ -35,8 +35,21 @@ export async function GET() {
   const { data: conversations } = await supabase
     .from('conversations')
     .select('id, user_a, user_b, created_at')
-    .or(`user_a.eq.${myProfile.id},user_b.eq.${myProfile.id}`)
-    .order('created_at', { ascending: false });
+    .or(`user_a.eq.${myProfile.id},user_b.eq.${myProfile.id}`);
+
+  // Unread new_message notifications to show badge counts per conversation
+  const { data: unreadNotifs } = await supabase
+    .from('notifications')
+    .select('related_user')
+    .eq('user_id', myProfile.id)
+    .eq('type', 'new_message')
+    .eq('read', false);
+
+  const unreadByUser: Record<string, number> = {};
+  for (const notif of unreadNotifs ?? []) {
+    const uid = notif.related_user as string;
+    unreadByUser[uid] = (unreadByUser[uid] ?? 0) + 1;
+  }
 
   const items = [];
 
@@ -52,32 +65,39 @@ export async function GET() {
     });
   }
 
-  // Build conversation items
+  // Build conversation items with last message timestamp for sorting
+  const convItems = [];
   for (const conv of conversations ?? []) {
     const otherUserId = conv.user_a === myProfile.id ? conv.user_b : conv.user_a;
     const { data: otherUser } = await supabase
       .from('profiles')
-      .select('id, riot_id, riot_tag, avatar_url')
+      .select('id, riot_id, riot_tag, avatar_url, current_rank')
       .eq('id', otherUserId)
       .single();
 
     const { data: lastMsg } = await supabase
       .from('messages')
-      .select('content')
+      .select('content, created_at')
       .eq('conversation_id', conv.id)
       .order('created_at', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
-    items.push({
+    convItems.push({
       id: conv.id,
       type: 'conversation' as const,
       user: otherUser,
       last_message: lastMsg?.content ?? null,
+      last_message_at: lastMsg?.created_at ?? conv.created_at,
+      unread: unreadByUser[otherUserId] ?? 0,
       conversation_id: conv.id,
       created_at: conv.created_at,
     });
   }
+
+  // Sort conversations by most recent message first
+  convItems.sort((a, b) => new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime());
+  items.push(...convItems);
 
   return NextResponse.json({ items, my_profile_id: myProfile.id });
 }

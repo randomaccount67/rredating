@@ -123,6 +123,19 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  // Broadcast to realtime channel so both clients update instantly (avoids RLS/auth issues with postgres_changes)
+  try {
+    const broadcastChannel = supabase.channel(`messages-${conversation_id}`);
+    await broadcastChannel.send({
+      type: 'broadcast',
+      event: 'new_message',
+      payload: { message },
+    });
+    await supabase.removeChannel(broadcastChannel);
+  } catch {
+    // Non-fatal — message was saved, realtime is best-effort
+  }
+
   // Only notify the other user — never the sender
   const otherUserId = conv.user_a === myProfile.id ? conv.user_b : conv.user_a;
 

@@ -23,12 +23,25 @@ export async function GET() {
     .order('created_at', { ascending: false })
     .limit(50);
 
+  // Build a map of other_user_id -> conversation_id so new_message notifications link directly
+  const { data: myConversations } = await supabase
+    .from('conversations')
+    .select('id, user_a, user_b')
+    .or(`user_a.eq.${myProfile.id},user_b.eq.${myProfile.id}`);
+
+  const convByUser: Record<string, string> = {};
+  for (const conv of myConversations ?? []) {
+    const otherId = conv.user_a === myProfile.id ? conv.user_b : conv.user_a;
+    convByUser[otherId] = conv.id;
+  }
+
   const formatted = notifications?.map(n => ({
     id: n.id,
     type: n.type,
     related_user: Array.isArray(n.profiles) ? n.profiles[0] : n.profiles,
     read: n.read,
     created_at: n.created_at,
+    conversation_id: n.type === 'new_message' ? (convByUser[n.related_user] ?? null) : null,
   })) ?? [];
 
   return NextResponse.json({ notifications: formatted });

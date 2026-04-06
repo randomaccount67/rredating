@@ -1,7 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 import { useState, useEffect, useCallback } from 'react';
-import { SlidersHorizontal, RefreshCw, X, Heart, ChevronDown, ChevronUp, Flag } from 'lucide-react';
+import { SlidersHorizontal, RefreshCw, X, Heart, Flag } from 'lucide-react';
 import { Profile, REGIONS, ROLES, getRankTier } from '@/types';
 import ProfileModal from '@/components/profile/ProfileModal';
 import ReportModal from '@/components/ReportModal';
@@ -34,7 +34,6 @@ export default function MatchPage() {
   const [requestStatuses, setRequestStatuses] = useState<Record<string, 'pending' | 'matched' | 'declined'>>({});
   const [filters, setFilters] = useState<Filters>({ region: '', rank_tier: '', role: '', gender: '', mic_only: false });
   const [actionLoading, setActionLoading] = useState(false);
-  const [showAbout, setShowAbout] = useState(false);
   const [reportingProfile, setReportingProfile] = useState<Profile | null>(null);
 
   const fetchProfiles = useCallback(async (pageNum: number, currentFilters: Filters) => {
@@ -82,7 +81,6 @@ export default function MatchPage() {
   }, [currentIndex, profiles.length, hasMore, loading, page, filters, fetchProfiles]);
 
   const advance = () => {
-    setShowAbout(false);
     setCurrentIndex(prev => prev + 1);
   };
 
@@ -287,6 +285,11 @@ export default function MatchPage() {
                       {currentProfile.role}
                     </span>
                   )}
+                  {currentProfile.gender && (
+                    <span className="font-mono text-xs text-[#8B8FA8] border border-[#2A2D35] px-2 py-0.5">
+                      {currentProfile.gender}
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -315,22 +318,10 @@ export default function MatchPage() {
               </div>
             )}
 
-            {/* About toggle */}
             {currentProfile.about && (
-              <div className="mb-4">
-                <button
-                  onClick={() => setShowAbout(v => !v)}
-                  className="flex items-center gap-1 text-[#525566] hover:text-[#8B8FA8] font-mono text-[10px] transition-colors"
-                >
-                  {showAbout ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
-                  {showAbout ? 'HIDE BIO' : 'SHOW BIO'}
-                </button>
-                {showAbout && (
-                  <p className="text-[#8B8FA8] text-xs mt-2 leading-relaxed border-l-2 border-[#2A2D35] pl-3">
-                    {currentProfile.about}
-                  </p>
-                )}
-              </div>
+              <p className="text-[#8B8FA8] text-xs mb-4 leading-relaxed border-l-2 border-[#2A2D35] pl-3">
+                {currentProfile.about}
+              </p>
             )}
 
             {/* Action buttons */}

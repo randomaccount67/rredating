@@ -80,6 +80,8 @@ export default function MessageThreadPage() {
         if (!res.ok) { router.push('/inbox'); return; }
         const d = await res.json();
         setData(d);
+        // Mark notifications as read now that the user is viewing this thread
+        fetch('/api/notifications/read', { method: 'POST' }).catch(() => {});
       } catch (e) {
         console.error(e);
         router.push('/inbox');
@@ -98,15 +100,10 @@ export default function MessageThreadPage() {
     const supabase = createClient();
     const channel = supabase
       .channel(`messages-${conversationId}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'messages',
-        filter: `conversation_id=eq.${conversationId}`,
-      }, (payload) => {
-        console.log('[realtime] message payload received:', payload);
-        const newMsg = payload.new as Message;
-        if (newMsg.conversation_id !== conversationId) return; // guard
+      .on('broadcast', { event: 'new_message' }, (payload) => {
+        console.log('[realtime] broadcast received:', payload);
+        const newMsg = payload.payload?.message as Message;
+        if (!newMsg || newMsg.conversation_id !== conversationId) return;
         setData(prev => prev ? {
           ...prev,
           messages: [...prev.messages, newMsg],
