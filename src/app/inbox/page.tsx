@@ -42,6 +42,8 @@ export default function InboxPage() {
       }
     }
     fetchInbox();
+    // Mark match_request and new_message notifications as read
+    fetch('/api/notifications/read', { method: 'POST' }).catch(() => {});
   }, []);
 
   const requests = items.filter(i => i.type === 'match_request');

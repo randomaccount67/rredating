@@ -2,7 +2,6 @@
 export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useUser } from '@clerk/nextjs';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Send, ArrowLeft, AlertTriangle, Flag } from 'lucide-react';
@@ -11,6 +10,7 @@ import { createClient } from '@/lib/supabase/client';
 
 interface Message {
   id: string;
+  conversation_id: string;
   sender_id: string;
   content: string;
   created_at: string;
@@ -31,7 +31,6 @@ interface ConversationData {
 export default function MessageThreadPage() {
   const params = useParams();
   const router = useRouter();
-  const { user } = useUser();
   const [data, setData] = useState<ConversationData | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
@@ -93,26 +92,30 @@ export default function MessageThreadPage() {
 
   useEffect(() => {
     if (!params.id) return;
+    const conversationId = params.id as string;
     const supabase = createClient();
     const channel = supabase
-      .channel(`messages-${params.id}`)
+      .channel(`messages-${conversationId}`)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'messages',
-        filter: `conversation_id=eq.${params.id}`,
+        // No server-side filter — Supabase can't verify RLS when using Clerk JWTs
+        // (auth.uid() is null for anon client), so the filter silently drops events.
+        // We filter client-side instead.
       }, (payload) => {
-        // Use functional update — no dependency on data in scope
+        const newMsg = payload.new as Message;
+        if (newMsg.conversation_id !== conversationId) return;
         setData(prev => prev ? {
           ...prev,
-          messages: [...prev.messages, payload.new as Message],
+          messages: [...prev.messages, newMsg],
         } : prev);
         setTimeout(scrollToBottom, 100);
       })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [params.id, scrollToBottom]); // data removed — was causing re-subscription on every message
+  }, [params.id, scrollToBottom]);
 
   useEffect(() => {
     scrollToBottom();
