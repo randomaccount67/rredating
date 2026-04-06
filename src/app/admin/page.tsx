@@ -201,7 +201,11 @@ export default function AdminPage() {
                   <button
                     onClick={() => {
                       const u = users.find(u => u.id === r.reported_id);
-                      if (u) setSelectedUser(u);
+                      if (u) {
+                        setSelectedUser(u);
+                      } else {
+                        console.warn('Reported user not found in users list:', r.reported_id);
+                      }
                     }}
                     className="font-mono text-[10px] text-[#8B8FA8] hover:text-[#E8EAF0] border border-[#2A2D35] px-2 py-1 transition-colors"
                   >
@@ -296,11 +300,10 @@ export default function AdminPage() {
                   <button
                     onClick={() => handleBan(selectedUser.id, !selectedUser.is_banned)}
                     disabled={actionLoading === selectedUser.id}
-                    className={`flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-2 transition-all disabled:opacity-50 ${
-                      selectedUser.is_banned
+                    className={`flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-2 transition-all disabled:opacity-50 ${selectedUser.is_banned
                         ? 'border border-green-500/30 text-green-400 hover:bg-green-500/10'
                         : 'border border-[#FF4655]/30 text-[#FF4655] hover:bg-[#FF4655]/10'
-                    }`}
+                      }`}
                     style={{ fontFamily: 'Barlow Condensed, sans-serif', clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}
                   >
                     <Ban size={13} />
@@ -421,7 +424,7 @@ export default function AdminPage() {
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
               {msgLoading ? (
                 <div className="space-y-2">
-                  {[1,2,3].map(i => <div key={i} className="h-10 bg-[#13151A] animate-pulse" />)}
+                  {[1, 2, 3].map(i => <div key={i} className="h-10 bg-[#13151A] animate-pulse" />)}
                 </div>
               ) : viewingMessages.messages.length === 0 ? (
                 <div className="text-center py-8">
@@ -436,11 +439,10 @@ export default function AdminPage() {
                         {isReporter ? displayName(viewingMessages.report.reporter) : displayName(viewingMessages.report.reported)}
                       </span>
                       <div
-                        className={`max-w-xs px-3 py-2 text-xs ${
-                          isReporter
+                        className={`max-w-xs px-3 py-2 text-xs ${isReporter
                             ? 'bg-[#13151A] border border-[#2A2D35] text-[#E8EAF0]'
                             : 'bg-[#FF4655]/10 border border-[#FF4655]/20 text-[#E8EAF0]'
-                        }`}
+                          }`}
                         style={{ clipPath: 'polygon(0 0, calc(100% - 5px) 0, 100% 5px, 100% 100%, 0 100%)' }}
                       >
                         <p className="break-words">{msg.content}</p>
