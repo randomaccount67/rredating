@@ -40,8 +40,9 @@ export async function GET(req: NextRequest) {
     .from('profiles')
     .select('*')
     .eq('confirmed_18', true)
+    .eq('is_banned', false)
     .neq('id', myProfile.id)
-    .range(offset, offset + limit - 1);
+    .range(offset, offset + limit); // fetch limit+1 to detect if more pages exist
 
   if (passedIds.length > 0) {
     query = query.not('id', 'in', `(${passedIds.join(',')})`);
@@ -53,11 +54,14 @@ export async function GET(req: NextRequest) {
     query = query.ilike('current_rank', `${rankTier}%`);
   }
 
-  const { data: profiles, error } = await query;
+  const { data: rawProfiles, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  const hasMore = (rawProfiles?.length ?? 0) > limit;
+  const profiles = rawProfiles?.slice(0, limit) ?? [];
+
   // Get request statuses for returned profiles
-  const profileIds = profiles?.map(p => p.id) ?? [];
+  const profileIds = profiles.map(p => p.id);
   let requestStatuses: Record<string, string> = {};
 
   if (profileIds.length > 0) {
@@ -76,11 +80,7 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  return NextResponse.json({
-    profiles: profiles ?? [],
-    hasMore: (profiles?.length ?? 0) === limit + 1,
-    requestStatuses,
-  });
+  return NextResponse.json({ profiles, hasMore, requestStatuses });
 }
 
 export async function POST(req: NextRequest) {
