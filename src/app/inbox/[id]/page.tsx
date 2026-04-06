@@ -100,12 +100,10 @@ export default function MessageThreadPage() {
         event: 'INSERT',
         schema: 'public',
         table: 'messages',
-        // No server-side filter — Supabase can't verify RLS when using Clerk JWTs
-        // (auth.uid() is null for anon client), so the filter silently drops events.
-        // We filter client-side instead.
+        filter: `conversation_id=eq.${conversationId}`,
       }, (payload) => {
         const newMsg = payload.new as Message;
-        if (newMsg.conversation_id !== conversationId) return;
+        if (newMsg.conversation_id !== conversationId) return; // guard
         setData(prev => prev ? {
           ...prev,
           messages: [...prev.messages, newMsg],

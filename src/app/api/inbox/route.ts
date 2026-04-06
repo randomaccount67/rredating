@@ -79,5 +79,5 @@ export async function GET() {
     });
   }
 
-  return NextResponse.json({ items });
+  return NextResponse.json({ items, my_profile_id: myProfile.id });
 }

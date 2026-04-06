@@ -1,9 +1,10 @@
 'use client';
 export const dynamic = 'force-dynamic';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { MessageSquare, UserCheck, Clock } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 
 interface InboxItem {
   id: string;
@@ -26,25 +27,47 @@ export default function InboxPage() {
   const [items, setItems] = useState<InboxItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'requests' | 'chats'>('requests');
+  const [myProfileId, setMyProfileId] = useState<string | null>(null);
+
+  const fetchInbox = useCallback(async (showLoading = false) => {
+    if (showLoading) setLoading(true);
+    try {
+      const res = await fetch('/api/inbox');
+      if (res.ok) {
+        const data = await res.json();
+        setItems(data.items);
+        if (data.my_profile_id) setMyProfileId(data.my_profile_id);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    async function fetchInbox() {
-      try {
-        const res = await fetch('/api/inbox');
-        if (res.ok) {
-          const data = await res.json();
-          setItems(data.items);
-        }
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchInbox();
-    // Mark match_request and new_message notifications as read
+    fetchInbox(true);
     fetch('/api/notifications/read', { method: 'POST' }).catch(() => {});
-  }, []);
+  }, [fetchInbox]);
+
+  // Realtime: re-fetch inbox when a new match request arrives for this user
+  useEffect(() => {
+    if (!myProfileId) return;
+    const supabase = createClient();
+    const channel = supabase
+      .channel('inbox-match-requests')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'match_requests',
+        filter: `to_user=eq.${myProfileId}`,
+      }, () => {
+        fetchInbox();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [myProfileId, fetchInbox]);
 
   const requests = items.filter(i => i.type === 'match_request');
   const chats = items.filter(i => i.type === 'conversation');
