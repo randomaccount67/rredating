@@ -233,7 +233,7 @@ export default function MessageThreadPage() {
                 >
                   <p className="break-words">{msg.content}</p>
                   <p className="font-mono text-[9px] text-[#525566] mt-1 text-right">
-                    {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {new Date(msg.created_at ?? Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>
               </div>
