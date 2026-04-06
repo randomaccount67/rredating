@@ -104,10 +104,11 @@ export default function MessageThreadPage() {
         console.log('[realtime] broadcast received:', payload);
         const newMsg = payload.payload?.message as Message;
         if (!newMsg || newMsg.conversation_id !== conversationId) return;
-        setData(prev => prev ? {
-          ...prev,
-          messages: [...prev.messages, newMsg],
-        } : prev);
+        setData(prev => {
+          if (!prev) return prev;
+          if (prev.messages.some(m => m.id === newMsg.id)) return prev; // already exists
+          return { ...prev, messages: [...prev.messages, newMsg] };
+        });
         setTimeout(scrollToBottom, 100);
       })
       .subscribe((status) => {
@@ -138,7 +139,16 @@ export default function MessageThreadPage() {
         const d = await res.json();
         throw new Error(d.error || 'Failed to send');
       }
+
+      const newMsg = await res.json(); // append local state into ui immediately instead of waiting for realtime broadcast
+      setData(prev => {
+        if (!prev) return prev;
+        if (prev.messages.some(m => m.id === newMsg.id)) return prev; // already exists
+        return { ...prev, messages: [...prev.messages, newMsg] };
+      });
+      setTimeout(scrollToBottom, 100);
       setMessage('');
+
       inputRef.current?.focus();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to send');
