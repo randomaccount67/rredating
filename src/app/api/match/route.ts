@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
   const region = searchParams.get('region');
   const rankTier = searchParams.get('rank_tier');
   const role = searchParams.get('role');
+  const gender = searchParams.get('gender');
   const micOnly = searchParams.get('mic_only') === '1';
 
   const supabase = createServiceClient();
@@ -59,6 +60,12 @@ export async function GET(req: NextRequest) {
   if (micOnly) query = query.eq('mic_on', true);
   if (rankTier && rankTier !== 'Any') {
     query = query.ilike('current_rank', `${rankTier}%`);
+  }
+  if (gender === 'Male' || gender === 'Female') {
+    query = query.eq('gender', gender);
+  } else if (gender === 'Other') {
+    // Other = anything that isn't Male or Female
+    query = query.neq('gender', 'Male').neq('gender', 'Female').not('gender', 'is', null);
   }
 
   const { data: rawProfiles, error } = await query;

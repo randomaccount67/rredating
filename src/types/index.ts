@@ -100,10 +100,10 @@ export const REGIONS: Region[] = ['NA', 'EU', 'APAC', 'LATAM', 'BR'];
 export const ROLES: Role[] = ['Duelist', 'Controller', 'Initiator', 'Sentinel', 'Flex'];
 export const MUSIC_TAGS: MusicTag[] = ['Hyperpop', 'Indie', 'Lofi', 'Pop', 'Hip-Hop', 'EDM', 'Metal', 'Other'];
 export const AGENTS = [
-  'Jett', 'Reyna', 'Phoenix', 'Yoru', 'Neon', 'Iso', 'Waylay',
-  'Omen', 'Brimstone', 'Viper', 'Astra', 'Harbor', 'Clove',
-  'Sova', 'Breach', 'Skye', 'Kay/O', 'Fade', 'Gekko',
-  'Sage', 'Cypher', 'Killjoy', 'Chamber', 'Deadlock', 'Vyse',
+  'Astra', 'Breach', 'Brimstone', 'Chamber', 'Clove', 'Cypher',
+  'Deadlock', 'Fade', 'Gekko', 'Harbor', 'Iso', 'Jett', 'KAY/O',
+  'Killjoy', 'Neon', 'Omen', 'Phoenix', 'Raze', 'Reyna', 'Sage',
+  'Skye', 'Sova', 'Tejo', 'Viper', 'Vyse', 'Waylay', 'Yoru',
 ];
 
 export function getRankTier(rank: string): string {

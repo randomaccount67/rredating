@@ -91,8 +91,10 @@ export default function MessageThreadPage() {
   }, [params.id, router]);
 
   useEffect(() => {
+    console.log('[realtime] useEffect fired, params.id:', params.id);
     if (!params.id) return;
     const conversationId = params.id as string;
+    console.log('[realtime] useEffect running, conversation ID:', conversationId);
     const supabase = createClient();
     const channel = supabase
       .channel(`messages-${conversationId}`)
@@ -102,6 +104,7 @@ export default function MessageThreadPage() {
         table: 'messages',
         filter: `conversation_id=eq.${conversationId}`,
       }, (payload) => {
+        console.log('[realtime] message payload received:', payload);
         const newMsg = payload.new as Message;
         if (newMsg.conversation_id !== conversationId) return; // guard
         setData(prev => prev ? {
@@ -110,9 +113,14 @@ export default function MessageThreadPage() {
         } : prev);
         setTimeout(scrollToBottom, 100);
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log('[realtime] channel status:', status);
+      });
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      console.log('[realtime] cleaning up channel');
+      supabase.removeChannel(channel);
+    };
   }, [params.id, scrollToBottom]);
 
   useEffect(() => {

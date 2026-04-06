@@ -51,6 +51,7 @@ export default async function PublicProfilePage({ params }: { params: { id: stri
               <h1 className="font-mono text-xl text-[#E8EAF0]">{displayName}</h1>
               <div className="flex items-center gap-2 mt-2 flex-wrap">
                 {p.region && <span className="text-[#525566] font-mono text-[10px] border border-[#2A2D35] px-2 py-0.5">{p.region}</span>}
+                {p.gender && <span className="text-[#525566] font-mono text-[10px] border border-[#2A2D35] px-2 py-0.5">{p.gender}</span>}
                 {p.role && (
                   <span className="flex items-center gap-1 text-[#8B8FA8] font-bold text-xs uppercase"
                     style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>

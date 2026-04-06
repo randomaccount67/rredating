@@ -19,6 +19,7 @@ interface Filters {
   region: string;
   rank_tier: string;
   role: string;
+  gender: string;
   mic_only: boolean;
 }
 
@@ -31,7 +32,7 @@ export default function MatchPage() {
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [requestStatuses, setRequestStatuses] = useState<Record<string, 'pending' | 'matched' | 'declined'>>({});
-  const [filters, setFilters] = useState<Filters>({ region: '', rank_tier: '', role: '', mic_only: false });
+  const [filters, setFilters] = useState<Filters>({ region: '', rank_tier: '', role: '', gender: '', mic_only: false });
   const [actionLoading, setActionLoading] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [reportingProfile, setReportingProfile] = useState<Profile | null>(null);
@@ -45,6 +46,7 @@ export default function MatchPage() {
         ...(currentFilters.region && { region: currentFilters.region }),
         ...(currentFilters.rank_tier && currentFilters.rank_tier !== 'Any' && { rank_tier: currentFilters.rank_tier }),
         ...(currentFilters.role && { role: currentFilters.role }),
+        ...(currentFilters.gender && { gender: currentFilters.gender }),
         ...(currentFilters.mic_only && { mic_only: '1' }),
       });
       const res = await fetch(`/api/match?${params}`);
@@ -186,6 +188,19 @@ export default function MatchPage() {
             >
               <option value="">ANY</option>
               {ROLES.map(r => <option key={r} value={r}>{r.toUpperCase()}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label block mb-2">GENDER</label>
+            <select
+              className="w-full bg-[#13151A] border border-[#2A2D35] px-2 py-1.5 text-xs font-mono text-[#E8EAF0] focus:border-[#FF4655] outline-none"
+              value={filters.gender}
+              onChange={e => setFilters(prev => ({ ...prev, gender: e.target.value }))}
+            >
+              <option value="">ANY</option>
+              <option value="Male">MALE</option>
+              <option value="Female">FEMALE</option>
+              <option value="Other">OTHER</option>
             </select>
           </div>
           <div className="flex flex-col justify-end">

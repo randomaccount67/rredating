@@ -60,9 +60,12 @@ export default function ProfileModal({ profile, onClose, onSendRequest, onPass, 
                 <OnlineIndicator isOnline={profile.is_online} showLabel />
               </div>
               <h2 className="font-mono text-lg text-[#E8EAF0] truncate">{displayName}</h2>
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
                 {profile.region && (
                   <span className="text-[#525566] font-mono text-[10px] border border-[#2A2D35] px-2 py-0.5">{profile.region}</span>
+                )}
+                {profile.gender && (
+                  <span className="text-[#525566] font-mono text-[10px] border border-[#2A2D35] px-2 py-0.5">{profile.gender}</span>
                 )}
                 {profile.role && (
                   <span className="flex items-center gap-1 text-[#8B8FA8] font-bold text-xs uppercase"
