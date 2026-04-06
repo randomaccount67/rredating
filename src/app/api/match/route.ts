@@ -39,14 +39,14 @@ export async function GET(req: NextRequest) {
     ...(sentRequests?.map(r => r.to_user) ?? []),
   ];
 
-  // Fetch a larger batch so shuffling feels random across the pool
-  const fetchLimit = limit * 4;
+  // Fetch 2x batch so shuffling feels random; 4x was 48 rows of select(*) per request
+  const fetchLimit = limit * 2;
   const fetchOffset = page * fetchLimit;
 
-  // Build query
+  // Build query — select only columns needed by browse cards and ProfileModal (skip internal/admin fields)
   let query = supabase
     .from('profiles')
-    .select('*')
+    .select('id, riot_id, riot_tag, region, current_rank, peak_rank, role, agents, music_tags, about, avatar_url, gender, is_online, created_at, mic_on, favorite_artist')
     .eq('confirmed_18', true)
     .eq('is_banned', false)
     .neq('id', myProfile.id)

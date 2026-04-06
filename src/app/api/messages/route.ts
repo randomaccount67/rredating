@@ -56,16 +56,19 @@ export async function GET(req: NextRequest) {
     .eq('id', otherUserId)
     .single();
 
-  const { data: messages } = await supabase
+  // Fetch last 200 messages in descending order then reverse — avoids loading entire history
+  const { data: messagesDesc } = await supabase
     .from('messages')
     .select('*')
     .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: false })
+    .limit(200);
+  const messages = (messagesDesc ?? []).reverse();
 
   return NextResponse.json({
     id: conv.id,
     other_user: otherUser,
-    messages: messages ?? [],
+    messages,
     my_profile_id: myProfile.id,
   });
 }

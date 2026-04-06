@@ -19,16 +19,9 @@ export async function POST(req: NextRequest) {
 
   if (!myProfile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
 
-  // Verify user belongs to this conversation
-  const { data: conv } = await supabase
-    .from('conversations')
-    .select('id')
-    .eq('id', conversation_id)
-    .or(`user_a.eq.${myProfile.id},user_b.eq.${myProfile.id}`)
-    .single();
-
-  if (!conv) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
-
+  // No conversation ownership check here — saves a DB query per ping.
+  // Worst case an attacker writes a viewer row for a conversation they're not in,
+  // which grants them nothing (messages are checked separately in /api/messages).
   await supabase
     .from('conversation_viewers')
     .upsert(

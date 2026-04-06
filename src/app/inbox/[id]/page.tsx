@@ -56,7 +56,7 @@ export default function MessageThreadPage() {
     });
 
     ping();
-    const interval = setInterval(ping, 15_000);
+    const interval = setInterval(ping, 30_000); // 30s matches the viewer-active window checked in /api/messages
 
     const leave = () => fetch('/api/presence', {
       method: 'DELETE',
