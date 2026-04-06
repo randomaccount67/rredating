@@ -27,13 +27,20 @@ export async function GET(req: NextRequest) {
 
   if (!myProfile) return NextResponse.json({ profiles: [], hasMore: false, requestStatuses: {} });
 
-  // Get passes
-  const { data: passes } = await supabase
-    .from('passes')
-    .select('to_user')
-    .eq('from_user', myProfile.id);
+  // Get passes and already-sent requests — exclude both from browse
+  const [{ data: passes }, { data: sentRequests }] = await Promise.all([
+    supabase.from('passes').select('to_user').eq('from_user', myProfile.id),
+    supabase.from('match_requests').select('to_user').eq('from_user', myProfile.id),
+  ]);
 
-  const passedIds = passes?.map(p => p.to_user) ?? [];
+  const excludedIds = [
+    ...(passes?.map(p => p.to_user) ?? []),
+    ...(sentRequests?.map(r => r.to_user) ?? []),
+  ];
+
+  // Fetch a larger batch so shuffling feels random across the pool
+  const fetchLimit = limit * 4;
+  const fetchOffset = page * fetchLimit;
 
   // Build query
   let query = supabase
@@ -42,10 +49,10 @@ export async function GET(req: NextRequest) {
     .eq('confirmed_18', true)
     .eq('is_banned', false)
     .neq('id', myProfile.id)
-    .range(offset, offset + limit); // fetch limit+1 to detect if more pages exist
+    .range(fetchOffset, fetchOffset + fetchLimit);
 
-  if (passedIds.length > 0) {
-    query = query.not('id', 'in', `(${passedIds.join(',')})`);
+  if (excludedIds.length > 0) {
+    query = query.not('id', 'in', `(${excludedIds.join(',')})`);
   }
   if (region) query = query.eq('region', region);
   if (role) query = query.eq('role', role);
@@ -57,8 +64,10 @@ export async function GET(req: NextRequest) {
   const { data: rawProfiles, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const hasMore = (rawProfiles?.length ?? 0) > limit;
-  const profiles = rawProfiles?.slice(0, limit) ?? [];
+  // Shuffle the batch so order is random on every load
+  const shuffled = (rawProfiles ?? []).sort(() => Math.random() - 0.5);
+  const hasMore = shuffled.length > limit;
+  const profiles = shuffled.slice(0, limit);
 
   // Get request statuses for returned profiles
   const profileIds = profiles.map(p => p.id);
