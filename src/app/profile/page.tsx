@@ -3,12 +3,13 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { useUser } from '@clerk/nextjs';
+import { useUser, useClerk } from '@clerk/nextjs';
 import { Upload, Save, Check, AlertTriangle } from 'lucide-react';
 import { RANKS, REGIONS, ROLES, MUSIC_TAGS, AGENTS, Profile } from '@/types';
 
 export default function ProfilePage() {
   const { user } = useUser();
+  const { signOut } = useClerk();
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -18,6 +19,9 @@ export default function ProfilePage() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   const [form, setForm] = useState({
     gender: '', gender_other: '',
@@ -114,6 +118,23 @@ export default function ProfilePage() {
       setError(e instanceof Error ? e.message : 'Save failed');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      const res = await fetch('/api/account/delete', { method: 'DELETE' });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.error || 'Deletion failed');
+      }
+      await signOut();
+      router.push('/');
+    } catch (e: unknown) {
+      setDeleteError(e instanceof Error ? e.message : 'Deletion failed');
+      setDeleting(false);
     }
   };
 
@@ -316,6 +337,48 @@ export default function ProfilePage() {
         >
           {saved ? <><Check size={16} /> SAVED</> : saving ? 'SAVING...' : <><Save size={16} /> SAVE CHANGES</>}
         </button>
+
+        {/* Danger zone */}
+        <div className="bg-[#1A1D24] border border-[#FF4655]/20 p-6"
+          style={{ clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>
+          <label className="label block mb-2 text-[#FF4655]">// DANGER ZONE</label>
+          <p className="text-[#8B8FA8] text-xs mb-4">
+            Permanently delete your account, profile, and all associated data. This cannot be undone.
+          </p>
+          {deleteError && (
+            <div className="flex items-center gap-2 text-[#FF4655] text-xs font-mono bg-[#FF4655]/5 border border-[#FF4655]/20 px-3 py-2 mb-3">
+              <AlertTriangle size={12} /> {deleteError}
+            </div>
+          )}
+          {!showDeleteConfirm ? (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="px-4 py-2 text-xs font-bold uppercase border border-[#FF4655]/40 text-[#FF4655] hover:bg-[#FF4655]/10 transition-all"
+              style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
+            >
+              DELETE ACCOUNT
+            </button>
+          ) : (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="px-4 py-2 text-xs font-bold uppercase bg-[#FF4655] text-white hover:bg-[#FF5F6D] transition-colors disabled:opacity-50"
+                style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
+              >
+                {deleting ? 'DELETING...' : 'CONFIRM DELETE'}
+              </button>
+              <button
+                onClick={() => { setShowDeleteConfirm(false); setDeleteError(''); }}
+                disabled={deleting}
+                className="px-4 py-2 text-xs font-bold uppercase border border-[#2A2D35] text-[#8B8FA8] hover:border-[#525566] transition-all disabled:opacity-50"
+                style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
+              >
+                CANCEL
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
