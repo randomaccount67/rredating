@@ -47,7 +47,6 @@ export default function InboxPage() {
 
   useEffect(() => {
     fetchInbox(true);
-    fetch('/api/notifications/read', { method: 'POST' }).catch(() => {});
   }, [fetchInbox]);
 
   // Realtime: re-fetch inbox when a new match request arrives for this user
