@@ -2,7 +2,7 @@
 import { createClient } from '@/lib/supabase';
 import { useCallback } from 'react';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/$/, '');
 
 /**
  * Hook that returns an authenticated fetch function for the backend API.
