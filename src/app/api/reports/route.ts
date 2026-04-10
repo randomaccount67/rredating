@@ -13,6 +13,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
   }
 
+  if (details && details.length > 2000) {
+    return NextResponse.json({ error: 'Details too long (max 2000 chars)' }, { status: 400 });
+  }
+
   const supabase = createServiceClient();
 
   // Get reporter's profile

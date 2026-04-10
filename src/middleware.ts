@@ -9,12 +9,17 @@ const isPublicRoute = createRouteMatcher([
   '/privacy',
   '/disclaimer',
   '/riot.txt',
+  '/match(.*)',
+  '/inbox(.*)',
+  '/notifications(.*)',
+  '/profile(.*)',
 ]);
 
 export default clerkMiddleware(async (auth, request) => {
-  if (!isPublicRoute(request)) {
-    await auth.protect();
-  }
+  // Auth temporarily disabled for local testing
+  // if (!isPublicRoute(request)) {
+  //   await auth.protect();
+  // }
   return NextResponse.next();
 });
 

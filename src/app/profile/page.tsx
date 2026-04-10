@@ -27,7 +27,7 @@ export default function ProfilePage() {
     gender: '', gender_other: '',
     riot_id: '', riot_tag: '', region: '', peak_rank: '', current_rank: '',
     role: '', agents: [] as string[], music_tags: [] as string[], about: '',
-    favorite_artist: '',
+    favorite_artist: '', age: 18,
   });
 
   useEffect(() => {
@@ -53,6 +53,7 @@ export default function ProfilePage() {
               music_tags: data.profile.music_tags ?? [],
               about: data.profile.about ?? '',
               favorite_artist: data.profile.favorite_artist ?? '',
+              age: data.profile.age ?? 18,
             });
           } else {
             router.replace('/onboarding');
@@ -66,7 +67,7 @@ export default function ProfilePage() {
       }
     }
     fetch_profile();
-  }, []);
+  }, [router]);
 
   const set = (key: string, value: unknown) => setForm(prev => ({ ...prev, [key]: value }));
 
@@ -109,7 +110,7 @@ export default function ProfilePage() {
       const res = await fetch('/api/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, gender: resolvedGender, avatar_url }),
+        body: JSON.stringify({ ...form, gender: resolvedGender, avatar_url, age: form.age }),
       });
       if (!res.ok) throw new Error('Save failed');
       setSaved(true);
@@ -141,243 +142,291 @@ export default function ProfilePage() {
   if (loading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
-        <div className="bg-[#1A1D24] border border-[#2A2D35] h-96 animate-pulse" />
+        <div className="bg-[#1B1814] border-2 border-[#2F2B24] h-96 animate-pulse" />
       </div>
     );
   }
 
   const displayAvatar = avatarPreview ?? profile?.avatar_url;
 
+  const section = "bg-[#1B1814] border-2 border-[#2F2B24]";
+  const inputCls = "w-full bg-[#131009] border-2 border-[#2F2B24] px-3 py-2 text-sm focus:border-[#FF4655] outline-none text-[#F2EDE4] transition-colors";
+  const chipBase = "px-3 py-1.5 text-xs font-mono border-2 transition-all cursor-pointer";
+  const chipOff  = `${chipBase} border-[#2F2B24] text-[#857A6A] hover:border-[#3A3530] hover:text-[#F2EDE4]`;
+  const chipOnLime = `${chipBase} border-[#FF4655] bg-[#FF4655]/8 text-[#FF4655]`;
+  const chipOnCyan = `${chipBase} border-[#00D4FF] bg-[#00D4FF]/8 text-[#00D4FF]`;
+  const chipOnPurple = `${chipBase} border-[#8B6FFF] bg-[#8B6FFF]/8 text-[#8B6FFF]`;
+
+  const SectionHeader = ({ color, children }: { color: string; children: React.ReactNode }) => (
+    <div className="flex items-center gap-2 mb-4">
+      <div className="w-4 h-[2px]" style={{ background: color }} />
+      <span className="font-mono text-[9px] tracking-widest uppercase text-[#4A4440]">{children}</span>
+    </div>
+  );
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
-      <div className="mb-6">
-        <span className="label text-[#FF4655]">// MY PROFILE</span>
-        <h1 className="font-extrabold text-4xl uppercase text-[#E8EAF0] mt-1" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+      {/* Page header */}
+      <div className="mb-8">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-6 h-[2px] bg-[#FF4655]" />
+          <span className="font-mono text-[10px] text-[#4A4440] tracking-widest uppercase">MY PROFILE</span>
+        </div>
+        <h1 className="font-black text-5xl uppercase text-[#F2EDE4]" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
           EDIT PROFILE
         </h1>
       </div>
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Avatar */}
-        <div className="bg-[#1A1D24] border border-[#2A2D35] p-6"
-          style={{ clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>
-          <label className="label block mb-3">PROFILE PICTURE</label>
-          <div className="flex items-center gap-4">
-            <div
-              className="w-20 h-20 bg-[#13151A] border border-[#2A2D35] cursor-pointer hover:border-[#FF4655] overflow-hidden flex items-center justify-center transition-colors"
-              style={{ clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              {displayAvatar ? (
-                <Image src={displayAvatar} alt="avatar" width={80} height={80} className="w-full h-full object-cover" />
-              ) : (
-                <Upload size={24} className="text-[#525566]" />
-              )}
+        <div className={section} style={{ borderTop: '3px solid #FF4655' }}>
+          <div className="p-5">
+            <SectionHeader color="#FF4655">PROFILE PICTURE</SectionHeader>
+            <div className="flex items-center gap-4">
+              <div
+                className="w-20 h-20 bg-[#131009] border-2 border-[#2F2B24] cursor-pointer hover:border-[#FF4655] overflow-hidden flex items-center justify-center transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {displayAvatar ? (
+                  <Image src={displayAvatar} alt="avatar" width={80} height={80} className="w-full h-full object-cover" />
+                ) : (
+                  <Upload size={22} className="text-[#4A4440]" />
+                )}
+              </div>
+              <div>
+                <button onClick={() => fileInputRef.current?.click()} className="btn-ghost text-xs py-1.5 px-3">
+                  CHANGE PHOTO
+                </button>
+                <p className="label mt-1.5">MAX 8MB · IMAGES ONLY</p>
+              </div>
             </div>
-            <div>
-              <button onClick={() => fileInputRef.current?.click()} className="btn-ghost text-xs py-1.5 px-3">
-                CHANGE PHOTO
-              </button>
-              <p className="label mt-1">MAX 8MB · IMAGES ONLY</p>
-            </div>
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
           </div>
-          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
         </div>
 
         {/* Identity */}
-        <div className="bg-[#1A1D24] border border-[#2A2D35] p-6"
-          style={{ clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>
-          <label className="label block mb-4">IDENTITY</label>
-          <div className="mb-4">
-            <label className="label block mb-2">GENDER</label>
-            <div className="flex flex-wrap gap-2 mb-2">
-              {['Male', 'Female', 'Other'].map(g => (
-                <button key={g} type="button" onClick={() => set('gender', g)}
-                  className={`px-4 py-1.5 text-xs font-mono border transition-all ${form.gender === g ? 'border-[#FF4655] bg-[#FF4655]/10 text-[#FF4655]' : 'border-[#2A2D35] text-[#8B8FA8] hover:border-[#525566]'}`}>
-                  {g}
-                </button>
-              ))}
+        <div className={section} style={{ borderTop: '3px solid #00D4FF' }}>
+          <div className="p-5">
+            <SectionHeader color="#00D4FF">IDENTITY</SectionHeader>
+
+            <div className="mb-4">
+              <label className="label block mb-2">GENDER</label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {['Male', 'Female', 'Other'].map(g => (
+                  <button key={g} type="button" onClick={() => set('gender', g)}
+                    className={form.gender === g ? chipOnLime : chipOff}>
+                    {g}
+                  </button>
+                ))}
+              </div>
+              {form.gender === 'Other' && (
+                <input
+                  className={inputCls}
+                  placeholder="describe yourself"
+                  value={form.gender_other}
+                  onChange={e => set('gender_other', e.target.value)}
+                  maxLength={50}
+                />
+              )}
             </div>
-            {form.gender === 'Other' && (
-              <input
-                className="w-full bg-[#13151A] border border-[#2A2D35] px-3 py-2 text-sm focus:border-[#FF4655] outline-none font-mono"
-                placeholder="describe yourself"
-                value={form.gender_other}
-                onChange={e => set('gender_other', e.target.value)}
-                maxLength={50}
-              />
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-4 mb-4">
+
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div>
+                <label className="label block mb-1.5">RIOT ID</label>
+                <input className={inputCls} value={form.riot_id} onChange={e => set('riot_id', e.target.value)} placeholder="REYNA" />
+              </div>
+              <div>
+                <label className="label block mb-1.5">TAG</label>
+                <input className={inputCls} value={form.riot_tag} onChange={e => set('riot_tag', e.target.value)} placeholder="FRAG" />
+              </div>
+            </div>
+
             <div>
-              <label className="label block mb-2">RIOT ID</label>
-              <input className="w-full bg-[#13151A] border border-[#2A2D35] px-3 py-2 text-sm focus:border-[#FF4655] outline-none font-mono"
-                value={form.riot_id} onChange={e => set('riot_id', e.target.value)} placeholder="REYNA" />
+              <label className="label block mb-1.5">REGION</label>
+              <div className="flex flex-wrap gap-2">
+                {REGIONS.map(r => (
+                  <button key={r} type="button" onClick={() => set('region', r)}
+                    className={form.region === r ? chipOnLime : chipOff}>
+                    {r}
+                  </button>
+                ))}
+              </div>
             </div>
+
             <div>
-              <label className="label block mb-2">TAG</label>
-              <input className="w-full bg-[#13151A] border border-[#2A2D35] px-3 py-2 text-sm focus:border-[#FF4655] outline-none font-mono"
-                value={form.riot_tag} onChange={e => set('riot_tag', e.target.value)} placeholder="FRAG" />
-            </div>
-          </div>
-          <div>
-            <label className="label block mb-2">REGION</label>
-            <div className="flex flex-wrap gap-2">
-              {REGIONS.map(r => (
-                <button key={r} type="button" onClick={() => set('region', r)}
-                  className={`px-4 py-1.5 text-xs font-mono border transition-all ${form.region === r ? 'border-[#FF4655] bg-[#FF4655]/10 text-[#FF4655]' : 'border-[#2A2D35] text-[#8B8FA8] hover:border-[#525566]'}`}>
-                  {r}
-                </button>
-              ))}
+              <label className="label block mb-1.5">AGE</label>
+              <div className="flex items-center gap-4">
+                <input
+                  type="range"
+                  min="18"
+                  max="99"
+                  value={form.age}
+                  onChange={e => set('age', parseInt(e.target.value, 10))}
+                  className="flex-1 accent-[#FF4655] cursor-pointer"
+                />
+                <span className="font-mono text-xl font-bold text-[#FF4655] w-10 text-center flex-shrink-0">
+                  {form.age}
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Ranks */}
-        <div className="bg-[#1A1D24] border border-[#2A2D35] p-6"
-          style={{ clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>
-          <label className="label block mb-4">COMPETITIVE</label>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label block mb-2">PEAK RANK</label>
-              <select className="w-full bg-[#13151A] border border-[#2A2D35] px-3 py-2 text-sm focus:border-[#FF4655] outline-none font-mono text-[#E8EAF0]"
-                value={form.peak_rank} onChange={e => set('peak_rank', e.target.value)}>
-                <option value="">--</option>
-                {RANKS.map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="label block mb-2">CURRENT RANK</label>
-              <select className="w-full bg-[#13151A] border border-[#2A2D35] px-3 py-2 text-sm focus:border-[#FF4655] outline-none font-mono text-[#E8EAF0]"
-                value={form.current_rank} onChange={e => set('current_rank', e.target.value)}>
-                <option value="">--</option>
-                {RANKS.map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
+        <div className={section} style={{ borderTop: '3px solid #FFB800' }}>
+          <div className="p-5">
+            <SectionHeader color="#FFB800">COMPETITIVE</SectionHeader>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label block mb-1.5">PEAK RANK</label>
+                <select className={inputCls} value={form.peak_rank} onChange={e => set('peak_rank', e.target.value)}>
+                  <option value="">--</option>
+                  {RANKS.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label block mb-1.5">CURRENT RANK</label>
+                <select className={inputCls} value={form.current_rank} onChange={e => set('current_rank', e.target.value)}>
+                  <option value="">--</option>
+                  {RANKS.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Playstyle */}
-        <div className="bg-[#1A1D24] border border-[#2A2D35] p-6"
-          style={{ clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>
-          <label className="label block mb-4">PLAYSTYLE</label>
-          <div className="mb-4">
-            <label className="label block mb-2">ROLE</label>
-            <div className="flex flex-wrap gap-2">
-              {ROLES.map(r => (
-                <button key={r} type="button" onClick={() => set('role', r)}
-                  className={`px-4 py-1.5 text-xs font-bold uppercase border transition-all ${form.role === r ? 'border-[#FF4655] bg-[#FF4655]/10 text-[#FF4655]' : 'border-[#2A2D35] text-[#8B8FA8] hover:border-[#525566]'}`}
-                  style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
-                  {r}
-                </button>
-              ))}
+        <div className={section} style={{ borderTop: '3px solid #FF3C3C' }}>
+          <div className="p-5">
+            <SectionHeader color="#FF3C3C">PLAYSTYLE</SectionHeader>
+
+            <div className="mb-4">
+              <label className="label block mb-1.5">ROLE</label>
+              <div className="flex flex-wrap gap-2">
+                {ROLES.map(r => (
+                  <button key={r} type="button" onClick={() => set('role', r)}
+                    className={form.role === r ? chipOnLime : chipOff}
+                    style={{ fontFamily: 'Barlow Condensed, sans-serif', fontWeight: 700 }}>
+                    {r}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-          <div>
-            <label className="label block mb-2">AGENTS (UP TO 3)</label>
-            <div className="flex flex-wrap gap-2">
-              {AGENTS.map(a => (
-                <button key={a} type="button" onClick={() => toggleArrayItem('agents', a, 3)}
-                  className={`px-3 py-1 text-xs font-mono border transition-all ${form.agents.includes(a) ? 'border-[#FF4655] bg-[#FF4655]/10 text-[#FF4655]' : 'border-[#2A2D35] text-[#8B8FA8] hover:border-[#525566]'}`}>
-                  {a}
-                </button>
-              ))}
+
+            <div>
+              <label className="label block mb-1.5">AGENTS (UP TO 3)</label>
+              <div className="flex flex-wrap gap-2">
+                {AGENTS.map(a => (
+                  <button key={a} type="button" onClick={() => toggleArrayItem('agents', a, 3)}
+                    className={form.agents.includes(a) ? chipOnCyan : chipOff}>
+                    {a}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
 
         {/* Personality */}
-        <div className="bg-[#1A1D24] border border-[#2A2D35] p-6"
-          style={{ clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>
-          <label className="label block mb-4">PERSONALITY</label>
-          <div className="mb-4">
-            <label className="label block mb-2">MUSIC TASTE</label>
-            <div className="flex flex-wrap gap-2">
-              {MUSIC_TAGS.map(tag => (
-                <button key={tag} type="button" onClick={() => toggleArrayItem('music_tags', tag)}
-                  className={`px-3 py-1 text-xs font-mono border transition-all ${form.music_tags.includes(tag) ? 'border-[#FF4655] bg-[#FF4655]/10 text-[#FF4655]' : 'border-[#2A2D35] text-[#8B8FA8] hover:border-[#525566]'}`}>
-                  {tag}
-                </button>
-              ))}
+        <div className={section} style={{ borderTop: '3px solid #8B6FFF' }}>
+          <div className="p-5">
+            <SectionHeader color="#8B6FFF">PERSONALITY</SectionHeader>
+
+            <div className="mb-4">
+              <label className="label block mb-1.5">MUSIC TASTE</label>
+              <div className="flex flex-wrap gap-2">
+                {MUSIC_TAGS.map(tag => (
+                  <button key={tag} type="button" onClick={() => toggleArrayItem('music_tags', tag)}
+                    className={form.music_tags.includes(tag) ? chipOnPurple : chipOff}>
+                    {tag}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-          <div className="mb-4">
-            <label className="label block mb-2">FAVORITE ARTIST</label>
-            <input
-              className="w-full bg-[#13151A] border border-[#2A2D35] px-3 py-2 text-sm focus:border-[#FF4655] outline-none font-mono"
-              value={form.favorite_artist}
-              onChange={e => set('favorite_artist', e.target.value)}
-              placeholder="who are you listening to"
-              maxLength={100}
-            />
-          </div>
-          <div>
-            <label className="label block mb-2">ABOUT (280 CHARS)</label>
-            <textarea
-              className="w-full bg-[#13151A] border border-[#2A2D35] px-3 py-2 text-sm focus:border-[#FF4655] outline-none resize-none"
-              rows={4} maxLength={280}
-              value={form.about} onChange={e => set('about', e.target.value)}
-            />
-            <p className="label text-right mt-1">{form.about.length}/280</p>
+
+            <div className="mb-4">
+              <label className="label block mb-1.5">FAVORITE ARTIST</label>
+              <input
+                className={inputCls}
+                value={form.favorite_artist}
+                onChange={e => set('favorite_artist', e.target.value)}
+                placeholder="who are you listening to"
+                maxLength={100}
+              />
+            </div>
+
+            <div>
+              <label className="label block mb-1.5">ABOUT (280 CHARS)</label>
+              <textarea
+                className={`${inputCls} resize-none`}
+                rows={4}
+                maxLength={280}
+                value={form.about}
+                onChange={e => set('about', e.target.value)}
+              />
+              <p className="label text-right mt-1">{form.about.length}/280</p>
+            </div>
           </div>
         </div>
 
-        {/* Error / Save */}
+        {/* Error */}
         {error && (
-          <div className="flex items-center gap-2 text-[#FF4655] text-xs font-mono bg-[#FF4655]/5 border border-[#FF4655]/20 px-3 py-2">
+          <div className="flex items-center gap-2 text-[#FF3C3C] text-sm bg-[#FF3C3C]/5 border-2 border-[#FF3C3C]/20 px-3 py-2">
             <AlertTriangle size={14} /> {error}
           </div>
         )}
 
+        {/* Save */}
         <button
           onClick={handleSave}
           disabled={saving}
-          className="w-full flex items-center justify-center gap-2 py-3 font-bold text-sm uppercase tracking-wider transition-all bg-[#FF4655] text-white hover:bg-[#FF5F6D] disabled:opacity-50"
-          style={{ fontFamily: 'Barlow Condensed, sans-serif', clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}
+          className="w-full flex items-center justify-center gap-2 py-3.5 font-black text-sm uppercase tracking-wider transition-all bg-[#FF4655] text-white hover:bg-[#FF5F6D] disabled:opacity-50"
+          style={{ fontFamily: 'Barlow Condensed, sans-serif', boxShadow: '4px 4px 0px rgba(255,70,85,0.25)' }}
         >
           {saved ? <><Check size={16} /> SAVED</> : saving ? 'SAVING...' : <><Save size={16} /> SAVE CHANGES</>}
         </button>
 
         {/* Danger zone */}
-        <div className="bg-[#1A1D24] border border-[#FF4655]/20 p-6"
-          style={{ clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>
-          <label className="label block mb-2 text-[#FF4655]">// DANGER ZONE</label>
-          <p className="text-[#8B8FA8] text-xs mb-4">
-            Permanently delete your account, profile, and all associated data. This cannot be undone.
-          </p>
-          {deleteError && (
-            <div className="flex items-center gap-2 text-[#FF4655] text-xs font-mono bg-[#FF4655]/5 border border-[#FF4655]/20 px-3 py-2 mb-3">
-              <AlertTriangle size={12} /> {deleteError}
-            </div>
-          )}
-          {!showDeleteConfirm ? (
-            <button
-              onClick={() => setShowDeleteConfirm(true)}
-              className="px-4 py-2 text-xs font-bold uppercase border border-[#FF4655]/40 text-[#FF4655] hover:bg-[#FF4655]/10 transition-all"
-              style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
-            >
-              DELETE ACCOUNT
-            </button>
-          ) : (
-            <div className="flex items-center gap-3">
+        <div className="bg-[#1B1814] border-2 border-[#FF3C3C]/20" style={{ borderTop: '3px solid #FF3C3C' }}>
+          <div className="p-5">
+            <SectionHeader color="#FF3C3C">DANGER ZONE</SectionHeader>
+            <p className="text-[#857A6A] text-sm mb-4">
+              Permanently delete your account, profile, and all associated data. This cannot be undone.
+            </p>
+            {deleteError && (
+              <div className="flex items-center gap-2 text-[#FF3C3C] text-sm bg-[#FF3C3C]/5 border-2 border-[#FF3C3C]/20 px-3 py-2 mb-3">
+                <AlertTriangle size={12} /> {deleteError}
+              </div>
+            )}
+            {!showDeleteConfirm ? (
               <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="px-4 py-2 text-xs font-bold uppercase bg-[#FF4655] text-white hover:bg-[#FF5F6D] transition-colors disabled:opacity-50"
+                onClick={() => setShowDeleteConfirm(true)}
+                className="px-4 py-2 text-xs font-bold uppercase border-2 border-[#FF3C3C]/40 text-[#FF3C3C] hover:bg-[#FF3C3C]/8 transition-all"
                 style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
               >
-                {deleting ? 'DELETING...' : 'CONFIRM DELETE'}
+                DELETE ACCOUNT
               </button>
-              <button
-                onClick={() => { setShowDeleteConfirm(false); setDeleteError(''); }}
-                disabled={deleting}
-                className="px-4 py-2 text-xs font-bold uppercase border border-[#2A2D35] text-[#8B8FA8] hover:border-[#525566] transition-all disabled:opacity-50"
-                style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
-              >
-                CANCEL
-              </button>
-            </div>
-          )}
+            ) : (
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="px-4 py-2 text-xs font-black uppercase bg-[#FF3C3C] text-white hover:opacity-90 transition-opacity disabled:opacity-50"
+                  style={{ fontFamily: 'Barlow Condensed, sans-serif', boxShadow: '3px 3px 0px rgba(255,60,60,0.25)' }}
+                >
+                  {deleting ? 'DELETING...' : 'CONFIRM DELETE'}
+                </button>
+                <button
+                  onClick={() => { setShowDeleteConfirm(false); setDeleteError(''); }}
+                  disabled={deleting}
+                  className="px-4 py-2 text-xs font-bold uppercase border-2 border-[#2F2B24] text-[#857A6A] hover:border-[#3A3530] transition-all disabled:opacity-50"
+                  style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
+                >
+                  CANCEL
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

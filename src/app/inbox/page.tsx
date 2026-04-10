@@ -1,21 +1,36 @@
 'use client';
 export const dynamic = 'force-dynamic';
 import { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { MessageSquare, UserCheck, Clock } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import ProfileModal from '@/components/profile/ProfileModal';
+import { Profile } from '@/types';
+
+interface InboxUser {
+  id: string;
+  riot_id: string | null;
+  riot_tag: string | null;
+  avatar_url: string | null;
+  current_rank: string | null;
+  peak_rank?: string | null;
+  role?: string | null;
+  agents?: string[] | null;
+  music_tags?: string[] | null;
+  about?: string | null;
+  gender?: string | null;
+  region?: string | null;
+  favorite_artist?: string | null;
+  is_online?: boolean;
+  created_at?: string;
+  age?: number | null;
+}
 
 interface InboxItem {
   id: string;
   type: 'match_request' | 'conversation';
-  user: {
-    id: string;
-    riot_id: string | null;
-    riot_tag: string | null;
-    avatar_url: string | null;
-    current_rank: string | null;
-  };
+  user: InboxUser;
   status?: string;
   last_message?: string;
   unread?: number;
@@ -23,11 +38,42 @@ interface InboxItem {
   conversation_id?: string;
 }
 
+function buildProfile(u: InboxUser): Profile {
+  return {
+    id: u.id,
+    riot_id: u.riot_id,
+    riot_tag: u.riot_tag,
+    avatar_url: u.avatar_url,
+    current_rank: u.current_rank as Profile['current_rank'],
+    peak_rank: (u.peak_rank ?? null) as Profile['peak_rank'],
+    role: (u.role ?? null) as Profile['role'],
+    agents: u.agents ?? null,
+    music_tags: (u.music_tags ?? null) as Profile['music_tags'],
+    about: u.about ?? null,
+    gender: u.gender ?? null,
+    region: (u.region ?? null) as Profile['region'],
+    favorite_artist: u.favorite_artist ?? null,
+    is_online: u.is_online ?? false,
+    created_at: u.created_at ?? new Date().toISOString(),
+    age: u.age ?? null,
+    clerk_user_id: '',
+    mic_on: false,
+    avg_acs: null,
+    reports_this_act: 0,
+    confirmed_18: true,
+    last_seen: null,
+    is_admin: false,
+    is_banned: false,
+  };
+}
+
 export default function InboxPage() {
+  const router = useRouter();
   const [items, setItems] = useState<InboxItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'requests' | 'chats'>('requests');
   const [myProfileId, setMyProfileId] = useState<string | null>(null);
+  const [viewingProfile, setViewingProfile] = useState<Profile | null>(null);
 
   const fetchInbox = useCallback(async (showLoading = false) => {
     if (showLoading) setLoading(true);
@@ -49,7 +95,6 @@ export default function InboxPage() {
     fetchInbox(true);
   }, [fetchInbox]);
 
-  // Realtime: re-fetch inbox when a new match request arrives for this user
   useEffect(() => {
     if (!myProfileId) return;
     const supabase = createClient();
@@ -71,7 +116,7 @@ export default function InboxPage() {
   const requests = items.filter(i => i.type === 'match_request');
   const chats = items.filter(i => i.type === 'conversation');
 
-  const handleAccept = async (requestId: string, fromUserId: string) => {
+  const handleAccept = async (requestId: string) => {
     try {
       const res = await fetch('/api/match/respond', {
         method: 'POST',
@@ -111,20 +156,26 @@ export default function InboxPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-[#2A2D35] mb-6">
+      <div className="flex border-b border-[#252830] mb-6">
         {[
-          { key: 'requests', label: 'DUO REQUESTS', icon: <UserCheck size={14} />, count: requests.filter(r => r.status === 'pending').length },
-          { key: 'chats', label: 'MESSAGES', icon: <MessageSquare size={14} />, count: chats.reduce((acc, c) => acc + (c.unread ?? 0), 0) },
+          { key: 'requests', label: 'DUO REQUESTS', icon: <UserCheck size={14} />, count: requests.filter(r => r.status === 'pending').length, activeColor: '#FF4655' },
+          { key: 'chats', label: 'MESSAGES', icon: <MessageSquare size={14} />, count: chats.reduce((acc, c) => acc + (c.unread ?? 0), 0), activeColor: '#00E5FF' },
         ].map(t => (
           <button
             key={t.key}
             onClick={() => setTab(t.key as 'requests' | 'chats')}
-            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 relative ${tab === t.key ? 'border-[#FF4655] text-[#FF4655]' : 'border-transparent text-[#8B8FA8] hover:text-[#E8EAF0]'}`}
-            style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 relative ${tab === t.key ? 'border-b-2' : 'border-transparent text-[#8B90A8] hover:text-[#ECF0F8]'}`}
+            style={{
+              fontFamily: 'Barlow Condensed, sans-serif',
+              ...(tab === t.key ? { borderColor: t.activeColor, color: t.activeColor } : {}),
+            }}
           >
             {t.icon} {t.label}
             {t.count > 0 && (
-              <span className="bg-[#FF4655] text-white text-[9px] font-mono w-4 h-4 rounded-full flex items-center justify-center">
+              <span
+                className="text-white text-[9px] font-mono w-4 h-4 rounded-full flex items-center justify-center"
+                style={{ backgroundColor: t.activeColor }}
+              >
                 {t.count}
               </span>
             )}
@@ -135,7 +186,7 @@ export default function InboxPage() {
       {loading ? (
         <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="bg-[#1A1D24] border border-[#2A2D35] h-20 animate-pulse" />
+            <div key={i} className="bg-[#171A22] border border-[#252830] h-20 animate-pulse" />
           ))}
         </div>
       ) : tab === 'requests' ? (
@@ -146,12 +197,12 @@ export default function InboxPage() {
               <p className="font-bold text-xl uppercase text-[#2A2D35]" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
                 NO REQUESTS YET
               </p>
-              <p className="text-[#525566] text-sm mt-1 font-mono">Go browse and send some requests</p>
+              <p className="text-[#525566] text-sm mt-1">Go browse and send some requests</p>
             </div>
           ) : (
             requests.map(req => (
-              <div key={req.id} className="bg-[#1A1D24] border border-[#2A2D35] p-4 flex items-center gap-4">
-                <div className="w-12 h-12 bg-[#13151A] border border-[#2A2D35] overflow-hidden flex-shrink-0"
+              <div key={req.id} className="bg-[#171A22] border border-[#252830] p-4 flex items-center gap-4">
+                <div className="w-12 h-12 bg-[#11141B] border border-[#252830] overflow-hidden flex-shrink-0"
                   style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}>
                   {req.user.avatar_url ? (
                     <Image src={req.user.avatar_url} alt="" width={48} height={48} className="w-full h-full object-cover" />
@@ -163,7 +214,7 @@ export default function InboxPage() {
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <p className="font-mono text-sm text-[#E8EAF0] truncate">
+                  <p className="text-sm text-[#E8EAF0] truncate">
                     {req.user.riot_id}#{req.user.riot_tag}
                   </p>
                   <div className="flex items-center gap-2 mt-0.5">
@@ -181,13 +232,13 @@ export default function InboxPage() {
                   <div className="flex gap-2 flex-shrink-0">
                     <button
                       onClick={() => handleDecline(req.id)}
-                      className="px-3 py-1.5 text-xs font-bold uppercase border border-[#2A2D35] text-[#525566] hover:border-[#525566] transition-all"
+                      className="px-3 py-1.5 text-xs font-bold uppercase border border-[#252830] text-[#525566] hover:border-[#525566] transition-all"
                       style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
                     >
                       DECLINE
                     </button>
                     <button
-                      onClick={() => handleAccept(req.id, req.user.id)}
+                      onClick={() => handleAccept(req.id)}
                       className="px-3 py-1.5 text-xs font-bold uppercase bg-[#FF4655] text-white hover:bg-[#FF5F6D] transition-colors"
                       style={{ fontFamily: 'Barlow Condensed, sans-serif', clipPath: 'polygon(0 0, calc(100% - 5px) 0, 100% 5px, 100% 100%, 0 100%)' }}
                     >
@@ -209,17 +260,22 @@ export default function InboxPage() {
               <p className="font-bold text-xl uppercase text-[#2A2D35]" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
                 NO CONVERSATIONS
               </p>
-              <p className="text-[#525566] text-sm mt-1 font-mono">Match with someone to start chatting</p>
+              <p className="text-[#525566] text-sm mt-1">Match with someone to start chatting</p>
             </div>
           ) : (
             chats.map(chat => (
-              <Link
+              <div
                 key={chat.id}
-                href={`/inbox/${chat.conversation_id}`}
-                className="flex items-center gap-4 bg-[#1A1D24] border border-[#2A2D35] hover:border-[#FF4655]/30 p-4 transition-all"
+                className="flex items-center gap-4 bg-[#171A22] border border-[#252830] hover:border-[#00E5FF]/20 p-4 transition-all cursor-pointer"
+                onClick={() => router.push(`/inbox/${chat.conversation_id}`)}
               >
-                <div className="w-12 h-12 bg-[#13151A] border border-[#2A2D35] overflow-hidden flex-shrink-0"
-                  style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}>
+                {/* Avatar — click opens profile */}
+                <button
+                  className="w-12 h-12 bg-[#11141B] border border-[#252830] overflow-hidden flex-shrink-0 hover:border-[#00E5FF]/40 transition-colors"
+                  style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}
+                  onClick={e => { e.stopPropagation(); setViewingProfile(buildProfile(chat.user)); }}
+                  title="View profile"
+                >
                   {chat.user.avatar_url ? (
                     <Image src={chat.user.avatar_url} alt="" width={48} height={48} className="w-full h-full object-cover" />
                   ) : (
@@ -227,14 +283,18 @@ export default function InboxPage() {
                       {chat.user.riot_id?.[0]?.toUpperCase() ?? '?'}
                     </div>
                   )}
-                </div>
+                </button>
 
                 <div className="flex-1 min-w-0">
-                  <p className="font-mono text-sm text-[#E8EAF0]">
+                  {/* Name — click opens profile */}
+                  <button
+                    className="text-sm text-[#E8EAF0] hover:text-[#00E5FF] transition-colors text-left"
+                    onClick={e => { e.stopPropagation(); setViewingProfile(buildProfile(chat.user)); }}
+                  >
                     {chat.user.riot_id}#{chat.user.riot_tag}
-                  </p>
+                  </button>
                   {chat.last_message && (
-                    <p className="text-[#525566] text-xs truncate mt-0.5 font-mono">{chat.last_message}</p>
+                    <p className="text-[#525566] text-xs truncate mt-0.5">{chat.last_message}</p>
                   )}
                 </div>
 
@@ -243,10 +303,21 @@ export default function InboxPage() {
                     {chat.unread}
                   </span>
                 ) : null}
-              </Link>
+              </div>
             ))
           )}
         </div>
+      )}
+
+      {/* Profile modal for chat user */}
+      {viewingProfile && (
+        <ProfileModal
+          profile={viewingProfile}
+          onClose={() => setViewingProfile(null)}
+          onSendRequest={() => {}}
+          onPass={() => {}}
+          requestStatus="matched"
+        />
       )}
     </div>
   );

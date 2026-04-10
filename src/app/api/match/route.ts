@@ -28,15 +28,18 @@ export async function GET(req: NextRequest) {
 
   if (!myProfile) return NextResponse.json({ profiles: [], hasMore: false, requestStatuses: {} });
 
-  // Get passes and already-sent requests — exclude both from browse
-  const [{ data: passes }, { data: sentRequests }] = await Promise.all([
+  // Get passes, already-sent requests, and blocked users — exclude all from browse
+  const [{ data: passes }, { data: sentRequests }, { data: blocks }] = await Promise.all([
     supabase.from('passes').select('to_user').eq('from_user', myProfile.id),
     supabase.from('match_requests').select('to_user').eq('from_user', myProfile.id),
+    supabase.from('blocked_users').select('blocked_id, blocker_id')
+      .or(`blocker_id.eq.${myProfile.id},blocked_id.eq.${myProfile.id}`),
   ]);
 
   const excludedIds = [
     ...(passes?.map(p => p.to_user) ?? []),
     ...(sentRequests?.map(r => r.to_user) ?? []),
+    ...(blocks ?? []).map(b => b.blocker_id === myProfile.id ? b.blocked_id : b.blocker_id),
   ];
 
   // Fetch 2x batch so shuffling feels random; 4x was 48 rows of select(*) per request
@@ -117,6 +120,16 @@ export async function POST(req: NextRequest) {
 
   if (!myProfile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
   if (myProfile.id === to_user_profile_id) return NextResponse.json({ error: 'Cannot request yourself' }, { status: 400 });
+
+  // Verify target exists and is not banned
+  const { data: targetProfile } = await supabase
+    .from('profiles')
+    .select('id, is_banned')
+    .eq('id', to_user_profile_id)
+    .single();
+
+  if (!targetProfile) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  if (targetProfile.is_banned) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
   // Check if they already sent us a request
   const { data: reverseRequest } = await supabase

@@ -2,24 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Barlow+Condensed:wght@400;500;600;700;800&family=Share+Tech+Mono&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Barlow+Condensed:wght@400;500;600;700;800&family=Share+Tech+Mono&display=swap');
 
 :root {
-  --bg-primary: #0F1013;
-  --bg-secondary: #13151A;
-  --bg-card: #1A1D24;
-  --bg-elevated: #1E2128;
-  --border: #2A2D35;
+  --bg-primary: #0B0D11;
+  --bg-secondary: #11141B;
+  --bg-card: #171A22;
+  --bg-elevated: #1C1F28;
+  --border: #252830;
   --border-accent: #FF4655;
   --accent: #FF4655;
-  --accent-dim: rgba(255, 70, 85, 0.15);
+  --accent-dim: rgba(255, 70, 85, 0.12);
   --accent-hover: #FF5F6D;
-  --text-primary: #E8EAF0;
-  --text-secondary: #8B8FA8;
-  --text-muted: #525566;
-  --text-mono: #A8FFBD;
+  --accent-cyan: #00E5FF;
+  --accent-cyan-dim: rgba(0, 229, 255, 0.10);
+  --accent-gold: #FFE84D;
+  --accent-gold-dim: rgba(255, 232, 77, 0.10);
+  --accent-purple: #A78BFA;
+  --accent-purple-dim: rgba(167, 139, 250, 0.10);
+  --text-primary: #ECF0F8;
+  --text-secondary: #8B90A8;
+  --text-muted: #505568;
+  --text-mono: #00E5FF;
   --online: #22C55E;
-  --offline: #525566;
+  --offline: #505568;
 }
 
 * {
@@ -31,47 +37,52 @@ html {
 }
 
 body {
-  background: var(--bg-primary);
+  background-color: var(--bg-primary);
+  /* Subtle tactical grid — consistent across all pages */
+  background-image:
+    linear-gradient(rgba(255, 70, 85, 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 229, 255, 0.018) 1px, transparent 1px);
+  background-size: 60px 60px;
   color: var(--text-primary);
-  font-family: 'Rajdhani', sans-serif;
-  font-weight: 500;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 400;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
 }
 
 /* Rank badge colors */
-.rank-iron { background: #4A4A4A; color: #B0B0B0; }
-.rank-bronze { background: #7C4D1E; color: #D4A97A; }
-.rank-silver { background: #3D4B5C; color: #9BB3C8; }
-.rank-gold { background: #5C4A00; color: #FFD700; }
-.rank-platinum { background: #004A4A; color: #00E5E5; }
-.rank-diamond { background: #1A0066; color: #A78BFA; }
-.rank-ascendant { background: #003300; color: #4ADE80; }
-.rank-immortal { background: #3D0010; color: #FF6B8A; }
-.rank-radiant { background: #3D3000; color: #FFDB4D; }
+.rank-iron { background: #2A2C34; color: #8B8FA8; }
+.rank-bronze { background: #2E1E0F; color: #CD7F32; }
+.rank-silver { background: #1A2133; color: #9BB3C8; }
+.rank-gold { background: #2A2200; color: #FFD700; }
+.rank-platinum { background: #002A2E; color: #00C8FF; }
+.rank-diamond { background: #1A0044; color: #A78BFA; }
+.rank-ascendant { background: #001F00; color: #4ADE80; }
+.rank-immortal { background: #220010; color: #FF6B8A; }
+.rank-radiant { background: #221A00; color: #FFE84D; }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: var(--bg-secondary); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+::-webkit-scrollbar-thumb:hover { background: var(--accent-cyan); }
 
 /* Selection */
-::selection { background: var(--accent-dim); color: var(--accent); }
+::selection { background: var(--accent-cyan-dim); color: var(--accent-cyan); }
 
 /* Input base */
 input, textarea, select {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   color: var(--text-primary);
-  font-family: 'Rajdhani', sans-serif;
-  font-weight: 500;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 400;
   outline: none;
   transition: border-color 0.15s ease;
 }
 
 input:focus, textarea:focus, select:focus {
-  border-color: var(--accent);
+  border-color: var(--accent-cyan);
 }
 
 input::placeholder, textarea::placeholder {
@@ -81,6 +92,13 @@ input::placeholder, textarea::placeholder {
 /* Mono text */
 .mono {
   font-family: 'Share Tech Mono', monospace;
+}
+
+/* Conversational / body copy — warm, readable */
+.copy {
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 400;
+  line-height: 1.6;
 }
 
 /* Tactical uppercase */
@@ -137,6 +155,12 @@ input::placeholder, textarea::placeholder {
   animation: flicker 4s ease-in-out infinite;
 }
 
+/* Glow pulse for cyan accent */
+@keyframes glow-cyan {
+  0%, 100% { box-shadow: 0 0 6px rgba(0, 229, 255, 0.2); }
+  50% { box-shadow: 0 0 14px rgba(0, 229, 255, 0.5); }
+}
+
 /* Custom button base */
 .btn-primary {
   @apply tactical font-bold text-sm px-4 py-2 border border-[#FF4655] bg-[#FF4655] text-white transition-all duration-150;
@@ -156,12 +180,12 @@ input::placeholder, textarea::placeholder {
 }
 
 .btn-ghost {
-  @apply tactical font-bold text-sm px-4 py-2 border border-[#2A2D35] text-[#8B8FA8] bg-transparent transition-all duration-150;
+  @apply tactical font-bold text-sm px-4 py-2 border border-[#252830] text-[#8B90A8] bg-transparent transition-all duration-150;
   clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%);
 }
 .btn-ghost:hover {
-  border-color: var(--text-secondary);
-  color: var(--text-primary);
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
 }
 
 /* Card */

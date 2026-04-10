@@ -50,11 +50,13 @@ export async function GET(req: NextRequest) {
 
   const otherUserId = conv.user_a === myProfile.id ? conv.user_b : conv.user_a;
 
-  const { data: otherUser } = await supabase
+  const { data: otherUser, error: otherUserError } = await supabase
     .from('profiles')
-    .select('id, riot_id, riot_tag, avatar_url')
+    .select('id, riot_id, riot_tag, avatar_url, current_rank, peak_rank, role, agents, music_tags, about, gender, region, favorite_artist, is_online, created_at, age')
     .eq('id', otherUserId)
     .single();
+
+  if (otherUserError || !otherUser) return NextResponse.json({ error: 'Other user not found' }, { status: 404 });
 
   // Fetch last 200 messages in descending order then reverse — avoids loading entire history
   const { data: messagesDesc } = await supabase

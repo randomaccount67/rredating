@@ -155,11 +155,11 @@ export default function MatchPage() {
 
       {/* Filters panel */}
       {showFilters && (
-        <div className="bg-[#1A1D24] border border-[#2A2D35] p-4 mb-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="bg-[#171A22] border border-[#252830] p-4 mb-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div>
             <label className="label block mb-2">REGION</label>
             <select
-              className="w-full bg-[#13151A] border border-[#2A2D35] px-2 py-1.5 text-xs font-mono text-[#E8EAF0] focus:border-[#FF4655] outline-none"
+              className="w-full bg-[#11141B] border border-[#252830] px-2 py-1.5 text-xs font-mono text-[#E8EAF0] focus:border-[#FF4655] outline-none"
               value={filters.region}
               onChange={e => setFilters(prev => ({ ...prev, region: e.target.value }))}
             >
@@ -170,7 +170,7 @@ export default function MatchPage() {
           <div>
             <label className="label block mb-2">RANK TIER</label>
             <select
-              className="w-full bg-[#13151A] border border-[#2A2D35] px-2 py-1.5 text-xs font-mono text-[#E8EAF0] focus:border-[#FF4655] outline-none"
+              className="w-full bg-[#11141B] border border-[#252830] px-2 py-1.5 text-xs font-mono text-[#E8EAF0] focus:border-[#FF4655] outline-none"
               value={filters.rank_tier}
               onChange={e => setFilters(prev => ({ ...prev, rank_tier: e.target.value }))}
             >
@@ -180,7 +180,7 @@ export default function MatchPage() {
           <div>
             <label className="label block mb-2">ROLE</label>
             <select
-              className="w-full bg-[#13151A] border border-[#2A2D35] px-2 py-1.5 text-xs font-mono text-[#E8EAF0] focus:border-[#FF4655] outline-none"
+              className="w-full bg-[#11141B] border border-[#252830] px-2 py-1.5 text-xs font-mono text-[#E8EAF0] focus:border-[#FF4655] outline-none"
               value={filters.role}
               onChange={e => setFilters(prev => ({ ...prev, role: e.target.value }))}
             >
@@ -191,7 +191,7 @@ export default function MatchPage() {
           <div>
             <label className="label block mb-2">GENDER</label>
             <select
-              className="w-full bg-[#13151A] border border-[#2A2D35] px-2 py-1.5 text-xs font-mono text-[#E8EAF0] focus:border-[#FF4655] outline-none"
+              className="w-full bg-[#11141B] border border-[#252830] px-2 py-1.5 text-xs font-mono text-[#E8EAF0] focus:border-[#FF4655] outline-none"
               value={filters.gender}
               onChange={e => setFilters(prev => ({ ...prev, gender: e.target.value }))}
             >
@@ -205,7 +205,7 @@ export default function MatchPage() {
             <label className="flex items-center gap-2 cursor-pointer">
               <div
                 onClick={() => setFilters(prev => ({ ...prev, mic_only: !prev.mic_only }))}
-                className={`w-8 h-4 border transition-all relative cursor-pointer ${filters.mic_only ? 'border-[#FF4655] bg-[#FF4655]/20' : 'border-[#2A2D35]'}`}
+                className={`w-8 h-4 border transition-all relative cursor-pointer ${filters.mic_only ? 'border-[#FF4655] bg-[#FF4655]/20' : 'border-[#252830]'}`}
               >
                 <div className={`absolute top-0.5 w-3 h-3 transition-all ${filters.mic_only ? 'bg-[#FF4655] left-4' : 'bg-[#525566] left-0.5'}`} />
               </div>
@@ -217,14 +217,14 @@ export default function MatchPage() {
 
       {/* Card area */}
       {loading && profiles.length === 0 ? (
-        <div className="bg-[#1A1D24] border border-[#2A2D35] h-[480px] animate-pulse"
+        <div className="bg-[#171A22] border border-[#252830] h-[480px] animate-pulse"
           style={{ clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%)' }} />
       ) : isDone ? (
         <div className="text-center py-24">
           <p className="font-extrabold text-3xl uppercase text-[#2A2D35]" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
             NO MORE PLAYERS
           </p>
-          <p className="text-[#525566] text-sm mt-2 font-mono">adjust your filters or check back later</p>
+          <p className="text-[#525566] text-sm mt-2">Adjust your filters or check back later.</p>
           <button
             onClick={() => { setPage(0); fetchProfiles(0, filters); }}
             className="mt-6 btn-ghost text-xs"
@@ -233,11 +233,11 @@ export default function MatchPage() {
           </button>
         </div>
       ) : currentProfile ? (
-        <div className="bg-[#1A1D24] border border-[#2A2D35]"
+        <div className="bg-[#171A22] border border-[#252830]"
           style={{ clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%)' }}>
 
           {/* Avatar */}
-          <div className="relative w-full aspect-square bg-[#13151A] overflow-hidden"
+          <div className="relative w-full aspect-square bg-[#11141B] overflow-hidden"
             style={{ maxHeight: '340px' }}>
             {currentProfile.avatar_url ? (
               <Image
@@ -254,7 +254,7 @@ export default function MatchPage() {
             )}
             {/* Region badge */}
             {currentProfile.region && (
-              <div className="absolute top-3 right-3 bg-[#13151A]/80 border border-[#2A2D35] px-2 py-0.5">
+              <div className="absolute top-3 right-3 bg-[#11141B]/80 border border-[#252830] px-2 py-0.5">
                 <span className="font-mono text-[10px] text-[#8B8FA8]">{currentProfile.region}</span>
               </div>
             )}
@@ -281,13 +281,18 @@ export default function MatchPage() {
                     </span>
                   )}
                   {currentProfile.role && (
-                    <span className="font-mono text-xs text-[#8B8FA8] border border-[#2A2D35] px-2 py-0.5">
+                    <span className="font-mono text-xs text-[#8B8FA8] border border-[#252830] px-2 py-0.5">
                       {currentProfile.role}
                     </span>
                   )}
                   {currentProfile.gender && (
-                    <span className="font-mono text-xs text-[#8B8FA8] border border-[#2A2D35] px-2 py-0.5">
+                    <span className="font-mono text-xs text-[#8B8FA8] border border-[#252830] px-2 py-0.5">
                       {currentProfile.gender}
+                    </span>
+                  )}
+                  {currentProfile.age != null && (
+                    <span className="font-mono text-xs text-[#8B8FA8] border border-[#252830] px-2 py-0.5">
+                      {currentProfile.age}yo
                     </span>
                   )}
                 </div>
@@ -302,7 +307,7 @@ export default function MatchPage() {
                 </button>
                 <button
                   onClick={() => setSelectedProfile(currentProfile)}
-                  className="text-[#525566] hover:text-[#E8EAF0] transition-colors text-xs font-mono border border-[#2A2D35] px-2 py-1 hover:border-[#525566]"
+                  className="text-[#525566] hover:text-[#E8EAF0] transition-colors text-xs font-mono border border-[#252830] px-2 py-1 hover:border-[#525566]"
                 >
                   VIEW
                 </button>
@@ -313,13 +318,13 @@ export default function MatchPage() {
             {currentProfile.agents && currentProfile.agents.length > 0 && (
               <div className="flex flex-wrap gap-1 mb-3">
                 {currentProfile.agents.map(a => (
-                  <span key={a} className="font-mono text-[10px] text-[#525566] border border-[#2A2D35] px-1.5 py-0.5">{a}</span>
+                  <span key={a} className="font-mono text-[10px] text-[#00E5FF] border border-[#00E5FF]/20 bg-[#00E5FF]/5 px-1.5 py-0.5">{a}</span>
                 ))}
               </div>
             )}
 
             {currentProfile.about && (
-              <p className="text-[#8B8FA8] text-xs mb-4 leading-relaxed border-l-2 border-[#2A2D35] pl-3">
+              <p className="text-[#8B90A8] text-xs mb-4 leading-relaxed border-l-2 border-[#00E5FF]/30 pl-3">
                 {currentProfile.about}
               </p>
             )}
@@ -329,7 +334,7 @@ export default function MatchPage() {
               <button
                 onClick={() => handlePass(currentProfile.id)}
                 disabled={actionLoading}
-                className="flex-1 flex items-center justify-center gap-2 py-3 border border-[#2A2D35] text-[#8B8FA8] hover:border-[#525566] hover:text-[#E8EAF0] transition-all font-bold text-sm uppercase tracking-wider disabled:opacity-50"
+                className="flex-1 flex items-center justify-center gap-2 py-3 border border-[#252830] text-[#8B8FA8] hover:border-[#525566] hover:text-[#E8EAF0] transition-all font-bold text-sm uppercase tracking-wider disabled:opacity-50"
                 style={{ fontFamily: 'Barlow Condensed, sans-serif', clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}
               >
                 <X size={16} /> PASS
@@ -348,7 +353,7 @@ export default function MatchPage() {
             </div>
 
             {/* Progress indicator */}
-            <p className="text-center font-mono text-[9px] text-[#2A2D35] mt-3">
+            <p className="text-center font-mono text-[9px] text-[#00E5FF]/30 mt-3">
               {currentIndex + 1} / {profiles.length}{hasMore ? '+' : ''}
             </p>
           </div>

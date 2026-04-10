@@ -4,9 +4,11 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Send, ArrowLeft, AlertTriangle, Flag } from 'lucide-react';
+import { Send, ArrowLeft, AlertTriangle, Flag, UserX } from 'lucide-react';
 import ReportModal from '@/components/ReportModal';
+import ProfileModal from '@/components/profile/ProfileModal';
 import { createClient } from '@/lib/supabase/client';
+import { Profile } from '@/types';
 
 interface Message {
   id: string;
@@ -16,16 +18,59 @@ interface Message {
   created_at: string;
 }
 
+interface OtherUser {
+  id: string;
+  riot_id: string | null;
+  riot_tag: string | null;
+  avatar_url: string | null;
+  current_rank: string | null;
+  peak_rank: string | null;
+  role: string | null;
+  agents: string[] | null;
+  music_tags: string[] | null;
+  about: string | null;
+  gender: string | null;
+  region: string | null;
+  favorite_artist: string | null;
+  is_online: boolean;
+  created_at: string;
+  age: number | null;
+}
+
 interface ConversationData {
   id: string;
-  other_user: {
-    id: string;
-    riot_id: string | null;
-    riot_tag: string | null;
-    avatar_url: string | null;
-  };
+  other_user: OtherUser;
   messages: Message[];
   my_profile_id: string;
+}
+
+function buildProfile(u: OtherUser): Profile {
+  return {
+    id: u.id,
+    riot_id: u.riot_id,
+    riot_tag: u.riot_tag,
+    avatar_url: u.avatar_url,
+    current_rank: u.current_rank as Profile['current_rank'],
+    peak_rank: u.peak_rank as Profile['peak_rank'],
+    role: u.role as Profile['role'],
+    agents: u.agents,
+    music_tags: u.music_tags as Profile['music_tags'],
+    about: u.about,
+    gender: u.gender,
+    region: u.region as Profile['region'],
+    favorite_artist: u.favorite_artist,
+    is_online: u.is_online,
+    created_at: u.created_at,
+    age: u.age,
+    clerk_user_id: '',
+    mic_on: false,
+    avg_acs: null,
+    reports_this_act: 0,
+    confirmed_18: true,
+    last_seen: null,
+    is_admin: false,
+    is_banned: false,
+  };
 }
 
 export default function MessageThreadPage() {
@@ -37,6 +82,9 @@ export default function MessageThreadPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [showReport, setShowReport] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [showBlockConfirm, setShowBlockConfirm] = useState(false);
+  const [blocking, setBlocking] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -56,7 +104,7 @@ export default function MessageThreadPage() {
     });
 
     ping();
-    const interval = setInterval(ping, 30_000); // 30s matches the viewer-active window checked in /api/messages
+    const interval = setInterval(ping, 30_000);
 
     const leave = () => fetch('/api/presence', {
       method: 'DELETE',
@@ -80,7 +128,6 @@ export default function MessageThreadPage() {
         if (!res.ok) { router.push('/inbox'); return; }
         const d = await res.json();
         setData(d);
-        // Mark notifications as read now that the user is viewing this thread
         fetch('/api/notifications/read', { method: 'POST' }).catch(() => {});
       } catch (e) {
         console.error(e);
@@ -93,32 +140,24 @@ export default function MessageThreadPage() {
   }, [params.id, router]);
 
   useEffect(() => {
-    console.log('[realtime] useEffect fired, params.id:', params.id);
     if (!params.id) return;
     const conversationId = params.id as string;
-    console.log('[realtime] useEffect running, conversation ID:', conversationId);
     const supabase = createClient();
     const channel = supabase
       .channel(`messages-${conversationId}`)
       .on('broadcast', { event: 'new_message' }, (payload) => {
-        console.log('[realtime] broadcast received:', payload);
         const newMsg = payload.payload?.message as Message;
         if (!newMsg || newMsg.conversation_id !== conversationId) return;
         setData(prev => {
           if (!prev) return prev;
-          if (prev.messages.some(m => m.id === newMsg.id)) return prev; // already exists
+          if (prev.messages.some(m => m.id === newMsg.id)) return prev;
           return { ...prev, messages: [...prev.messages, newMsg] };
         });
         setTimeout(scrollToBottom, 100);
       })
-      .subscribe((status) => {
-        console.log('[realtime] channel status:', status);
-      });
+      .subscribe();
 
-    return () => {
-      console.log('[realtime] cleaning up channel');
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [params.id, scrollToBottom]);
 
   useEffect(() => {
@@ -140,20 +179,43 @@ export default function MessageThreadPage() {
         throw new Error(d.error || 'Failed to send');
       }
 
-      const newMsg = await res.json(); // append local state into ui immediately instead of waiting for realtime broadcast
+      const { message: newMsg } = await res.json();
       setData(prev => {
         if (!prev) return prev;
-        if (prev.messages.some(m => m.id === newMsg.id)) return prev; // already exists
+        if (prev.messages.some(m => m.id === newMsg.id)) return prev;
         return { ...prev, messages: [...prev.messages, newMsg] };
       });
       setTimeout(scrollToBottom, 100);
       setMessage('');
-
       inputRef.current?.focus();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to send');
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleBlock = async () => {
+    if (!data) return;
+    setBlocking(true);
+    try {
+      const res = await fetch('/api/block', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blocked_profile_id: data.other_user.id }),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        setError(d.error || 'Failed to block');
+        setShowBlockConfirm(false);
+        return;
+      }
+      router.push('/inbox');
+    } catch {
+      setError('Failed to block');
+      setShowBlockConfirm(false);
+    } finally {
+      setBlocking(false);
     }
   };
 
@@ -178,29 +240,47 @@ export default function MessageThreadPage() {
         <Link href="/inbox" className="text-[#525566] hover:text-[#E8EAF0] transition-colors">
           <ArrowLeft size={18} />
         </Link>
-        <div className="w-10 h-10 bg-[#13151A] border border-[#2A2D35] overflow-hidden"
-          style={{ clipPath: 'polygon(0 0, calc(100% - 5px) 0, 100% 5px, 100% 100%, 0 100%)' }}>
-          {data.other_user.avatar_url ? (
-            <Image src={data.other_user.avatar_url} alt="" width={40} height={40} className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center font-mono text-[#525566] text-sm">
-              {data.other_user.riot_id?.[0]?.toUpperCase() ?? '?'}
-            </div>
-          )}
-        </div>
-        <div className="flex-1">
-          <p className="font-mono text-sm text-[#E8EAF0]">{otherName}</p>
-          <p className="label text-[8px] text-green-400">MATCHED DUO</p>
-        </div>
+
+        {/* Clickable avatar + name — opens profile */}
         <button
-          onClick={() => setShowReport(true)}
-          className="text-[#525566] hover:text-[#FF4655] transition-colors p-1"
-          title="Report this user"
+          onClick={() => setShowProfile(true)}
+          className="flex items-center gap-3 flex-1 min-w-0 text-left hover:opacity-80 transition-opacity"
         >
-          <Flag size={14} />
+          <div className="w-10 h-10 bg-[#13151A] border border-[#2A2D35] overflow-hidden flex-shrink-0"
+            style={{ clipPath: 'polygon(0 0, calc(100% - 5px) 0, 100% 5px, 100% 100%, 0 100%)' }}>
+            {data.other_user.avatar_url ? (
+              <Image src={data.other_user.avatar_url} alt="" width={40} height={40} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center font-mono text-[#525566] text-sm">
+                {data.other_user.riot_id?.[0]?.toUpperCase() ?? '?'}
+              </div>
+            )}
+          </div>
+          <div>
+            <p className="font-mono text-sm text-[#E8EAF0] hover:text-[#00E5FF] transition-colors truncate">{otherName}</p>
+            <p className="label text-[8px] text-green-400">MATCHED DUO · TAP TO VIEW PROFILE</p>
+          </div>
         </button>
+
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <button
+            onClick={() => setShowBlockConfirm(true)}
+            className="text-[#525566] hover:text-[#FF4655] transition-colors p-1"
+            title="Block this user"
+          >
+            <UserX size={14} />
+          </button>
+          <button
+            onClick={() => setShowReport(true)}
+            className="text-[#525566] hover:text-[#FF4655] transition-colors p-1"
+            title="Report this user"
+          >
+            <Flag size={14} />
+          </button>
+        </div>
       </div>
 
+      {/* Report modal */}
       {showReport && (
         <ReportModal
           reportedProfileId={data.other_user.id}
@@ -209,11 +289,58 @@ export default function MessageThreadPage() {
         />
       )}
 
+      {/* Profile modal */}
+      {showProfile && (
+        <ProfileModal
+          profile={buildProfile(data.other_user)}
+          onClose={() => setShowProfile(false)}
+          onSendRequest={() => {}}
+          onPass={() => {}}
+          requestStatus="matched"
+        />
+      )}
+
+      {/* Block confirmation modal */}
+      {showBlockConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+          <div
+            className="bg-[#1A1D24] border border-[#FF4655]/40 p-6 max-w-sm w-full"
+            style={{ clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}
+          >
+            <h3 className="font-bold text-lg uppercase text-[#FF4655] mb-2"
+              style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+              BLOCK {otherName}?
+            </h3>
+            <p className="text-[#8B90A8] text-sm mb-6 font-mono">
+              This will end your match and they won&apos;t be able to contact you again.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowBlockConfirm(false)}
+                disabled={blocking}
+                className="flex-1 py-2.5 text-sm font-bold uppercase border border-[#252830] text-[#525566] hover:border-[#525566] transition-all disabled:opacity-50"
+                style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
+              >
+                CANCEL
+              </button>
+              <button
+                onClick={handleBlock}
+                disabled={blocking}
+                className="flex-1 py-2.5 text-sm font-bold uppercase bg-[#FF4655] text-white hover:bg-[#FF5F6D] transition-all disabled:opacity-50"
+                style={{ fontFamily: 'Barlow Condensed, sans-serif', clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}
+              >
+                {blocking ? 'BLOCKING...' : 'CONFIRM BLOCK'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto space-y-3 mb-4 pr-1">
         {data.messages.length === 0 ? (
           <div className="text-center py-8">
-            <p className="text-[#525566] font-mono text-sm">START THE CONVERSATION. GOOD LUCK.</p>
+            <p className="text-[#525566] text-sm">Start the conversation. Good luck.</p>
           </div>
         ) : (
           data.messages.map(msg => {
@@ -226,10 +353,7 @@ export default function MessageThreadPage() {
                       ? 'bg-[#FF4655]/20 border border-[#FF4655]/30 text-[#E8EAF0]'
                       : 'bg-[#1E2128] border border-[#2A2D35] text-[#E8EAF0]'
                   }`}
-                  style={{ clipPath: isMe
-                    ? 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)'
-                    : 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)'
-                  }}
+                  style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}
                 >
                   <p className="break-words">{msg.content}</p>
                   <p className="font-mono text-[9px] text-[#525566] mt-1 text-right">
@@ -255,7 +379,7 @@ export default function MessageThreadPage() {
       <div className="flex gap-2">
         <input
           ref={inputRef}
-          className="flex-1 bg-[#1A1D24] border border-[#2A2D35] px-4 py-2.5 text-sm font-mono focus:border-[#FF4655] outline-none"
+          className="flex-1 bg-[#1A1D24] border border-[#2A2D35] px-4 py-2.5 text-sm focus:border-[#FF4655] outline-none"
           placeholder="TYPE MESSAGE..."
           value={message}
           onChange={e => setMessage(e.target.value)}

@@ -40,6 +40,7 @@ export interface Profile {
   created_at: string;
   is_admin: boolean;
   is_banned: boolean;
+  age: number | null;
 }
 
 export interface Report {

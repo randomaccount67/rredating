@@ -36,6 +36,7 @@ export default function OnboardingPage() {
     favorite_artist: '',
     about: '',
     confirmed_18: false,
+    age: 18,
   });
 
   const set = (key: string, value: unknown) => setForm(prev => ({ ...prev, [key]: value }));
@@ -141,7 +142,7 @@ export default function OnboardingPage() {
         </div>
         {form.gender === 'Other' && (
           <input
-            className="w-full bg-[#13151A] border border-[#2A2D35] px-3 py-2 text-sm focus:border-[#FF4655] outline-none font-mono"
+            className="w-full bg-[#13151A] border border-[#2A2D35] px-3 py-2 text-sm focus:border-[#FF4655] outline-none"
             placeholder="describe yourself"
             value={form.gender_other}
             onChange={e => set('gender_other', e.target.value)}
@@ -154,7 +155,7 @@ export default function OnboardingPage() {
         <div>
           <label className="label block mb-2">RIOT ID *</label>
           <input
-            className="w-full bg-[#13151A] border border-[#2A2D35] px-3 py-2 text-sm focus:border-[#FF4655] outline-none font-mono"
+            className="w-full bg-[#13151A] border border-[#2A2D35] px-3 py-2 text-sm focus:border-[#FF4655] outline-none"
             placeholder="i miss her"
             value={form.riot_id}
             onChange={e => set('riot_id', e.target.value)}
@@ -163,7 +164,7 @@ export default function OnboardingPage() {
         <div>
           <label className="label block mb-2">TAG *</label>
           <input
-            className="w-full bg-[#13151A] border border-[#2A2D35] px-3 py-2 text-sm focus:border-[#FF4655] outline-none font-mono"
+            className="w-full bg-[#13151A] border border-[#2A2D35] px-3 py-2 text-sm focus:border-[#FF4655] outline-none"
             placeholder="smurf"
             value={form.riot_tag}
             onChange={e => set('riot_tag', e.target.value)}
@@ -185,15 +186,33 @@ export default function OnboardingPage() {
           ))}
         </div>
       </div>
+
+      <div>
+        <label className="label block mb-2">AGE</label>
+        <div className="flex items-center gap-4">
+          <input
+            type="range"
+            min="18"
+            max="99"
+            value={form.age}
+            onChange={e => set('age', parseInt(e.target.value, 10))}
+            className="flex-1 accent-[#FF4655] cursor-pointer"
+          />
+          <span className="font-mono text-xl font-bold text-[#FF4655] w-10 text-center flex-shrink-0">
+            {form.age}
+          </span>
+        </div>
+        <p className="label mt-1">MINIMUM AGE IS 18</p>
+      </div>
     </div>,
 
     // Step 1: Rank
     <div key="rank" className="space-y-6">
-      <p className="font-mono text-[10px] text-[#FF4655] tracking-widest uppercase">larpers will be executed on sight</p>
+      <p className="text-xs text-[#FF4655]/70 italic">larpers will be executed on sight</p>
       <div>
         <label className="label block mb-2">PEAK RANK</label>
         <select
-          className="w-full bg-[#13151A] border border-[#2A2D35] px-3 py-2 text-sm focus:border-[#FF4655] outline-none font-mono text-[#E8EAF0]"
+          className="w-full bg-[#13151A] border border-[#2A2D35] px-3 py-2 text-sm focus:border-[#FF4655] outline-none text-[#E8EAF0]"
           value={form.peak_rank}
           onChange={e => set('peak_rank', e.target.value)}
         >
@@ -204,7 +223,7 @@ export default function OnboardingPage() {
       <div>
         <label className="label block mb-2">CURRENT RANK</label>
         <select
-          className={`w-full bg-[#13151A] border px-3 py-2 text-sm focus:border-[#FF4655] outline-none font-mono text-[#E8EAF0] ${
+          className={`w-full bg-[#13151A] border px-3 py-2 text-sm focus:border-[#FF4655] outline-none text-[#E8EAF0] ${
             form.current_rank && form.peak_rank && getRankIndex(form.current_rank) > getRankIndex(form.peak_rank)
               ? 'border-[#FF4655]'
               : 'border-[#2A2D35]'
@@ -216,7 +235,7 @@ export default function OnboardingPage() {
           {RANKS.map(r => <option key={r} value={r}>{r}</option>)}
         </select>
         {form.current_rank && form.peak_rank && getRankIndex(form.current_rank) > getRankIndex(form.peak_rank) && (
-          <p className="font-mono text-[10px] text-[#FF4655] mt-1">current rank cannot be higher than peak rank</p>
+          <p className="text-xs text-[#FF4655] mt-1">Current rank can&apos;t be higher than peak rank.</p>
         )}
       </div>
     </div>,
@@ -276,7 +295,7 @@ export default function OnboardingPage() {
       <div>
         <label className="label block mb-2">FAVORITE ARTIST</label>
         <input
-          className="w-full bg-[#13151A] border border-[#2A2D35] px-3 py-2 text-sm focus:border-[#FF4655] outline-none font-mono"
+          className="w-full bg-[#13151A] border border-[#2A2D35] px-3 py-2 text-sm focus:border-[#FF4655] outline-none"
           placeholder="who are you listening to"
           value={form.favorite_artist}
           onChange={e => set('favorite_artist', e.target.value)}
@@ -369,7 +388,7 @@ export default function OnboardingPage() {
 
         {/* Error */}
         {error && (
-          <div className="flex items-center gap-2 text-[#FF4655] text-xs font-mono mb-4 bg-[#FF4655]/5 border border-[#FF4655]/20 px-3 py-2">
+          <div className="flex items-center gap-2 text-[#FF4655] text-sm mb-4 bg-[#FF4655]/5 border border-[#FF4655]/20 px-3 py-2">
             <AlertTriangle size={14} />
             {error}
           </div>

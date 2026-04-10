@@ -1,9 +1,17 @@
 import { auth, clerkClient } from '@clerk/nextjs/server';
+import { createHmac } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { Filter } from 'bad-words';
 
 const filter = new Filter();
+
+// Hash email with HMAC-SHA256 so plaintext is never stored in the database.
+// Still allows deterministic lookup across auth provider re-links.
+function hashEmail(email: string): string {
+  const secret = process.env.EMAIL_HMAC_SECRET ?? 'rredating-fallback-secret';
+  return createHmac('sha256', secret).update(email.toLowerCase().trim()).digest('hex');
+}
 
 async function getUserEmail(userId: string): Promise<string | null> {
   try {
@@ -39,10 +47,11 @@ export async function GET() {
   try {
     const email = await getUserEmail(userId);
     if (email) {
+      const emailHash = hashEmail(email);
       const { data: existingProfile } = await supabase
         .from('profiles')
         .select('*')
-        .eq('email', email)
+        .eq('email_hash', emailHash)
         .single();
 
       if (existingProfile) {
@@ -71,19 +80,39 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Must confirm 18+' }, { status: 400 });
   }
 
+  const age = body.age != null ? parseInt(body.age, 10) : null;
+  if (age !== null && (isNaN(age) || age < 18 || age > 99)) {
+    return NextResponse.json({ error: 'Age must be between 18 and 99' }, { status: 400 });
+  }
+
   let about = body.about ?? '';
   try { about = filter.clean(about); } catch { /* non-ASCII — leave as is */ }
 
   const supabase = createServiceClient();
   const email = await getUserEmail(userId);
 
-  // Check if another account already has a profile with this email
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+  const allowedAvatarHost = supabaseUrl.replace(/^https?:\/\//, '').split('/')[0];
+  const avatarUrl = body.avatar_url || null;
+  if (avatarUrl) {
+    try {
+      const parsed = new URL(avatarUrl);
+      if (parsed.hostname !== allowedAvatarHost) {
+        return NextResponse.json({ error: 'Invalid avatar URL' }, { status: 400 });
+      }
+    } catch {
+      return NextResponse.json({ error: 'Invalid avatar URL' }, { status: 400 });
+    }
+  }
+
+  // Check if another account already has a profile with this email hash
   if (email) {
+    const emailHash = hashEmail(email);
     try {
       const { data: existingByEmail } = await supabase
         .from('profiles')
         .select('id, clerk_user_id')
-        .eq('email', email)
+        .eq('email_hash', emailHash)
         .neq('clerk_user_id', userId)
         .single();
 
@@ -91,7 +120,7 @@ export async function POST(req: NextRequest) {
         // Re-link the existing profile to this Clerk user ID and update it
         const profileData = {
           clerk_user_id: userId,
-          email,
+          email_hash: emailHash,
           gender: body.gender?.trim() || null,
           riot_id: body.riot_id?.trim() || null,
           riot_tag: body.riot_tag?.trim() || null,
@@ -102,25 +131,26 @@ export async function POST(req: NextRequest) {
           agents: body.agents?.length ? body.agents : null,
           mic_on: body.mic_on ?? true,
           avg_acs: body.avg_acs ? parseInt(body.avg_acs, 10) : null,
-          reports_this_act: body.reports_this_act ? parseInt(body.reports_this_act, 10) : 0,
           music_tags: body.music_tags?.length ? body.music_tags : null,
           favorite_artist: body.favorite_artist?.trim() || null,
           about: about || null,
-          avatar_url: body.avatar_url || null,
+          avatar_url: avatarUrl,
           confirmed_18: true,
+          age,
         };
         await supabase.from('profiles').update(profileData).eq('id', existingByEmail.id);
         const { data: updated } = await supabase.from('profiles').select('*').eq('id', existingByEmail.id).single();
         return NextResponse.json({ profile: updated });
       }
     } catch {
-      // Email column may not exist yet — fall through to normal upsert
+      // email_hash column may not exist yet — fall through to normal upsert
     }
   }
 
+  const emailHash = email ? hashEmail(email) : null;
   const profileData = {
     clerk_user_id: userId,
-    email: email ?? null,
+    email_hash: emailHash,
     gender: body.gender?.trim() || null,
     riot_id: body.riot_id?.trim() || null,
     riot_tag: body.riot_tag?.trim() || null,
@@ -131,12 +161,12 @@ export async function POST(req: NextRequest) {
     agents: body.agents?.length ? body.agents : null,
     mic_on: body.mic_on ?? true,
     avg_acs: body.avg_acs ? parseInt(body.avg_acs, 10) : null,
-    reports_this_act: body.reports_this_act ? parseInt(body.reports_this_act, 10) : 0,
     music_tags: body.music_tags?.length ? body.music_tags : null,
     favorite_artist: body.favorite_artist?.trim() || null,
     about: about || null,
-    avatar_url: body.avatar_url || null,
+    avatar_url: avatarUrl,
     confirmed_18: true,
+    age,
   };
 
   const { data, error } = await supabase
@@ -159,17 +189,38 @@ export async function PUT(req: NextRequest) {
 
   const body = await req.json();
 
+  const age = body.age != null ? parseInt(body.age, 10) : null;
+  if (age !== null && (isNaN(age) || age < 18 || age > 99)) {
+    return NextResponse.json({ error: 'Age must be between 18 and 99' }, { status: 400 });
+  }
+
   let about = body.about ?? '';
   try { about = filter.clean(about); } catch { /* non-ASCII */ }
 
   const supabase = createServiceClient();
   const email = await getUserEmail(userId);
 
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+  const allowedAvatarHost = supabaseUrl.replace(/^https?:\/\//, '').split('/')[0];
+  const avatarUrl = body.avatar_url || null;
+  if (avatarUrl) {
+    try {
+      const parsed = new URL(avatarUrl);
+      if (parsed.hostname !== allowedAvatarHost) {
+        return NextResponse.json({ error: 'Invalid avatar URL' }, { status: 400 });
+      }
+    } catch {
+      return NextResponse.json({ error: 'Invalid avatar URL' }, { status: 400 });
+    }
+  }
+
+  const emailHash = email ? hashEmail(email) : null;
+
   const { data, error } = await supabase
     .from('profiles')
     .upsert({
       clerk_user_id: userId,
-      email: email ?? null,
+      email_hash: emailHash,
       gender: body.gender?.trim() || null,
       riot_id: body.riot_id?.trim() || null,
       riot_tag: body.riot_tag?.trim() || null,
@@ -180,12 +231,12 @@ export async function PUT(req: NextRequest) {
       agents: body.agents?.length ? body.agents : null,
       mic_on: body.mic_on ?? true,
       avg_acs: body.avg_acs ? parseInt(body.avg_acs, 10) : null,
-      reports_this_act: body.reports_this_act ? parseInt(body.reports_this_act, 10) : 0,
       music_tags: body.music_tags?.length ? body.music_tags : null,
       favorite_artist: body.favorite_artist?.trim() || null,
       about: about || null,
-      avatar_url: body.avatar_url || null,
+      avatar_url: avatarUrl,
       confirmed_18: true,
+      age,
     }, { onConflict: 'clerk_user_id' })
     .select()
     .single();

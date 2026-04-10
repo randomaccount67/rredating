@@ -72,7 +72,7 @@ export async function GET() {
     const [{ data: otherProfiles }, lastMsgResults] = await Promise.all([
       supabase
         .from('profiles')
-        .select('id, riot_id, riot_tag, avatar_url, current_rank')
+        .select('id, riot_id, riot_tag, avatar_url, current_rank, peak_rank, role, agents, music_tags, about, gender, region, favorite_artist, is_online, created_at, age')
         .in('id', otherUserIds),
       Promise.all(
         convIds.map(id =>

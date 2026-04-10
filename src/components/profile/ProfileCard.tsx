@@ -21,120 +21,136 @@ function RankPill({ rank }: { rank: string }) {
   );
 }
 
+const RANK_ACCENT: Record<string, string> = {
+  iron: '#7A7870', bronze: '#C47A30', silver: '#9BAFC4', gold: '#E8C200',
+  platinum: '#00B8E0', diamond: '#9B71F4', ascendant: '#40D060',
+  immortal: '#FF5070', radiant: '#FFD700',
+};
+
 export default function ProfileCard({ profile, onSendRequest, onPass, onViewProfile, requestStatus }: ProfileCardProps) {
   const displayName = profile.riot_id
     ? `${profile.riot_id}#${profile.riot_tag}`
     : 'UNKNOWN#0000';
 
+  const rankColor = profile.current_rank
+    ? (RANK_ACCENT[getRankTier(profile.current_rank)] ?? '#FF4655')
+    : '#2F2B24';
+
   return (
     <div
-      className="bg-[#1A1D24] border border-[#2A2D35] hover:border-[#FF4655]/50 transition-all duration-200 group cursor-pointer animate-fade-in"
-      style={{ clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}
+      className="bg-[#1B1814] border-2 border-[#2F2B24] hover:border-[#3A3530] transition-all duration-200 animate-fade-in flex flex-col"
+      style={{ borderTop: `3px solid ${rankColor}`, boxShadow: '0 0 0 0 transparent' }}
     >
-      {/* Card header */}
-      <div className="p-4 border-b border-[#2A2D35]" onClick={() => onViewProfile(profile)}>
-        <div className="flex items-start gap-3">
-          {/* Avatar */}
-          <div className="relative flex-shrink-0">
-            <div className="w-14 h-14 bg-[#13151A] border border-[#2A2D35] overflow-hidden"
-              style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}>
-              {profile.avatar_url ? (
-                <Image src={profile.avatar_url} alt={displayName} width={56} height={56} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <span className="font-mono text-xl text-[#525566]">
-                    {profile.riot_id?.[0]?.toUpperCase() ?? '?'}
-                  </span>
-                </div>
-              )}
-            </div>
-            <div className="absolute -bottom-0.5 -right-0.5">
-              <OnlineIndicator isOnline={profile.is_online} />
-            </div>
+      {/* Avatar + header */}
+      <div
+        className="relative cursor-pointer overflow-hidden"
+        style={{ aspectRatio: '4/3', background: '#131009' }}
+        onClick={() => onViewProfile(profile)}
+      >
+        {profile.avatar_url ? (
+          <Image
+            src={profile.avatar_url}
+            alt={displayName}
+            fill
+            className="object-cover"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <span
+              className="font-black text-7xl text-[#2F2B24]"
+              style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
+            >
+              {profile.riot_id?.[0]?.toUpperCase() ?? '?'}
+            </span>
           </div>
+        )}
+        {/* Gradient overlay at bottom */}
+        <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#1B1814] to-transparent" />
 
-          {/* Name + region */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="font-mono text-sm text-[#E8EAF0] truncate">{displayName}</h3>
-              <span className="text-[#525566] font-mono text-[9px] border border-[#2A2D35] px-1.5 py-0.5 flex-shrink-0">
-                {profile.region ?? '??'}
-              </span>
-            </div>
-
-            {/* Ranks */}
-            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-              {profile.peak_rank && (
-                <div className="flex items-center gap-1">
-                  <span className="label text-[8px]">PEAK</span>
-                  <RankPill rank={profile.peak_rank} />
-                </div>
-              )}
-              {profile.current_rank && (
-                <div className="flex items-center gap-1">
-                  <span className="label text-[8px]">NOW</span>
-                  <RankPill rank={profile.current_rank} />
-                </div>
-              )}
-            </div>
-          </div>
+        {/* Online indicator */}
+        <div className="absolute top-2 right-2">
+          <OnlineIndicator isOnline={profile.is_online} />
         </div>
-      </div>
 
-      {/* Stats row */}
-      <div className="px-4 py-2.5 border-b border-[#2A2D35] flex items-center gap-3 text-[#8B8FA8]" onClick={() => onViewProfile(profile)}>
-        {profile.role && (
-          <div className="flex items-center gap-1">
-            <Target size={11} />
-            <span className="font-bold text-[11px] uppercase tracking-wide text-[#E8EAF0]"
-              style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>{profile.role}</span>
+        {/* Region badge */}
+        {profile.region && (
+          <div className="absolute top-2 left-2 font-mono text-[9px] px-1.5 py-0.5 bg-[#0D0B08]/80 border border-[#2F2B24] text-[#857A6A]">
+            {profile.region}
           </div>
         )}
       </div>
 
-      {/* Agents */}
-      {profile.agents && profile.agents.length > 0 && (
-        <div className="px-4 py-2 border-b border-[#2A2D35] flex items-center gap-1.5 flex-wrap" onClick={() => onViewProfile(profile)}>
-          {profile.agents.map(agent => (
-            <span key={agent} className="bg-[#13151A] border border-[#2A2D35] px-2 py-0.5 font-mono text-[10px] text-[#8B8FA8]">
-              {agent}
-            </span>
-          ))}
+      {/* Info */}
+      <div className="p-3 flex-1 flex flex-col gap-2 cursor-pointer" onClick={() => onViewProfile(profile)}>
+        {/* Name */}
+        <div>
+          <h3 className="font-mono text-sm text-[#F2EDE4] truncate">{displayName}</h3>
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            {profile.role && (
+              <span className="flex items-center gap-1 text-[#857A6A] text-[10px] font-bold uppercase tracking-wider"
+                style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                <Target size={10} /> {profile.role}
+              </span>
+            )}
+            {profile.peak_rank && (
+              <div className="flex items-center gap-1">
+                <span className="font-mono text-[8px] text-[#4A4440] uppercase">PEAK</span>
+                <RankPill rank={profile.peak_rank} />
+              </div>
+            )}
+            {profile.current_rank && (
+              <div className="flex items-center gap-1">
+                <span className="font-mono text-[8px] text-[#4A4440] uppercase">NOW</span>
+                <RankPill rank={profile.current_rank} />
+              </div>
+            )}
+          </div>
         </div>
-      )}
 
-      {/* Music tags */}
-      {profile.music_tags && profile.music_tags.length > 0 && (
-        <div className="px-4 py-2 border-b border-[#2A2D35] flex items-center gap-1.5 flex-wrap" onClick={() => onViewProfile(profile)}>
-          <Music size={10} className="text-[#525566] flex-shrink-0" />
-          {profile.music_tags.map(tag => (
-            <span key={tag} className="text-[9px] font-mono text-[#525566]">{tag}</span>
-          ))}
-        </div>
-      )}
+        {/* Agents */}
+        {profile.agents && profile.agents.length > 0 && (
+          <div className="flex items-center gap-1 flex-wrap">
+            {profile.agents.map(agent => (
+              <span key={agent} className="bg-[#00D4FF]/5 border border-[#00D4FF]/20 px-2 py-0.5 font-mono text-[9px] text-[#00D4FF]">
+                {agent}
+              </span>
+            ))}
+          </div>
+        )}
 
-      {/* About snippet */}
-      {profile.about && (
-        <div className="px-4 py-2.5 border-b border-[#2A2D35]" onClick={() => onViewProfile(profile)}>
-          <p className="text-[#8B8FA8] text-xs leading-relaxed line-clamp-2">{profile.about}</p>
-        </div>
-      )}
+        {/* Music */}
+        {profile.music_tags && profile.music_tags.length > 0 && (
+          <div className="flex items-center gap-1 flex-wrap">
+            <Music size={9} className="text-[#8B6FFF] flex-shrink-0" />
+            {profile.music_tags.slice(0, 3).map(tag => (
+              <span key={tag} className="text-[9px] font-mono text-[#8B6FFF]">{tag}</span>
+            ))}
+          </div>
+        )}
+
+        {/* About */}
+        {profile.about && (
+          <p className="text-[#857A6A] text-xs leading-relaxed line-clamp-2 border-l-2 border-[#2F2B24] pl-2">
+            {profile.about}
+          </p>
+        )}
+      </div>
 
       {/* Actions */}
-      <div className="p-3 flex gap-2">
+      <div className="p-3 pt-0 flex gap-2 border-t border-[#2F2B24] mt-auto">
         {requestStatus === 'matched' ? (
-          <div className="flex-1 text-center py-2 text-xs font-mono text-green-400 border border-green-400/20 bg-green-400/5">
+          <div className="flex-1 text-center py-2 text-xs font-mono text-[#40D060] border-2 border-[#40D060]/20 bg-[#40D060]/5">
             ✓ MATCHED
           </div>
         ) : requestStatus === 'pending' ? (
-          <div className="flex-1 text-center py-2 text-xs font-mono text-[#525566] border border-[#2A2D35]">
+          <div className="flex-1 text-center py-2 text-xs font-mono text-[#4A4440] border-2 border-[#2F2B24]">
             REQUEST SENT
           </div>
         ) : (
           <>
             <button
               onClick={(e) => { e.stopPropagation(); onPass(profile.id); }}
-              className="flex-1 py-2 text-xs font-bold uppercase tracking-wider border border-[#2A2D35] text-[#525566] hover:border-[#525566] hover:text-[#8B8FA8] transition-all"
+              className="flex-1 py-2 text-xs font-bold uppercase tracking-wider border-2 border-[#2F2B24] text-[#4A4440] hover:border-[#3A3530] hover:text-[#857A6A] transition-all"
               style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
             >
               PASS
@@ -142,7 +158,7 @@ export default function ProfileCard({ profile, onSendRequest, onPass, onViewProf
             <button
               onClick={(e) => { e.stopPropagation(); onSendRequest(profile.id); }}
               className="flex-1 py-2 text-xs font-bold uppercase tracking-wider bg-[#FF4655] text-white hover:bg-[#FF5F6D] transition-colors"
-              style={{ fontFamily: 'Barlow Condensed, sans-serif', clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}
+              style={{ fontFamily: 'Barlow Condensed, sans-serif', boxShadow: '3px 3px 0px rgba(255,70,85,0.2)' }}
             >
               SEND REQUEST
             </button>
