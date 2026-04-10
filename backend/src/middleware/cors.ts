@@ -8,8 +8,11 @@ if (config.nodeEnv !== 'production') {
 
 export const corsMiddleware = cors({
   origin: (origin, callback) => {
-    if (origin && allowedOrigins.includes(origin)) return callback(null, true);
-    callback(new Error(`Origin ${origin || 'none'} not allowed by CORS`));
+    // Allow requests with no origin (like mobile apps, curl, or health checks)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error(`Origin ${origin} not allowed by CORS`));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
