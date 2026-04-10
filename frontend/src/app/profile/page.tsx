@@ -109,7 +109,7 @@ export default function ProfilePage() {
 
       const res = await api('/api/profile', {
         method: 'PUT',
-        body: JSON.stringify({ ...form, gender: resolvedGender, avatar_url, age: form.age }),
+        body: JSON.stringify({ ...form, gender_other: undefined, gender: resolvedGender, avatar_url, age: form.age }),
       });
       if (!res.ok) throw new Error('Save failed');
       setSaved(true);

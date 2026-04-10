@@ -90,7 +90,7 @@ export default function OnboardingPage() {
 
       const res = await api('/api/profile', {
         method: 'POST',
-        body: JSON.stringify({ ...form, gender: resolvedGender, avatar_url }),
+        body: JSON.stringify({ ...form, gender_other: undefined, gender: resolvedGender, avatar_url }),
       });
 
       if (!res.ok) {
