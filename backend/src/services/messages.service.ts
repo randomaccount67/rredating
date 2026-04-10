@@ -77,14 +77,7 @@ export async function sendMessage(profile: Profile, conversationId: string, cont
 
   if (error) throw new Error(error.message);
 
-  // Broadcast via Supabase Realtime
-  const channel = db.channel(`messages-${conversationId}`);
-  await channel.send({
-    type: 'broadcast',
-    event: 'new_message',
-    payload: { message },
-  });
-  db.removeChannel(channel);
+  // Broadcasting is now handled automatically by Supabase Realtime via Postgres Changes.
 
   // Check if other user is actively viewing (skip notification if so)
   const { data: viewer } = await db

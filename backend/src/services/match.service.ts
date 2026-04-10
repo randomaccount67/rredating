@@ -9,29 +9,10 @@ export async function browse(profile: Profile, query: Record<string, string>) {
   const limit = Math.min(parseInt(query.limit || '12', 10), 24);
   const offset = page * limit;
 
-  // Fetch exclusions in parallel
-  const [passesRes, requestsRes, blockedRes] = await Promise.all([
-    db.from('passes').select('to_user').eq('from_user', profile.id),
-    db.from('match_requests').select('to_user').eq('from_user', profile.id),
-    db.from('blocked_users').select('blocked_id, blocker_id').or(`blocker_id.eq.${profile.id},blocked_id.eq.${profile.id}`),
-  ]);
-
-  const exclude = new Set<string>();
-  exclude.add(profile.id);
-  passesRes.data?.forEach(p => exclude.add(p.to_user));
-  requestsRes.data?.forEach(r => exclude.add(r.to_user));
-  blockedRes.data?.forEach(b => {
-    exclude.add(b.blocked_id);
-    exclude.add(b.blocker_id);
-  });
-
-  // Build query
+  // Build query using RPC to avoid 414 Request-URI Too Long
   let q = db
-    .from('profiles')
+    .rpc('get_browseable_profiles', { viewer_id: profile.id })
     .select(BROWSE_COLUMNS)
-    .eq('confirmed_18', true)
-    .eq('is_banned', false)
-    .not('id', 'in', `(${[...exclude].join(',')})`)
     .range(offset, offset + (limit * 2) - 1);
 
   // Apply filters
@@ -49,8 +30,9 @@ export async function browse(profile: Profile, query: Record<string, string>) {
     }
   }
 
-  const { data: rows } = await q;
-  if (!rows) return { profiles: [], hasMore: false, requestStatuses: {} };
+  const { data, error } = await q;
+  const rows = data as Profile[] | null;
+  if (error || !rows || rows.length === 0) return { profiles: [], hasMore: false, requestStatuses: {} };
 
   // Shuffle and slice
   const shuffled = rows.sort(() => Math.random() - 0.5).slice(0, limit);

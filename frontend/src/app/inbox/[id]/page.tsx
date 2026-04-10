@@ -100,16 +100,20 @@ export default function MessageThreadPage() {
     const supabase = createClient();
     const channel = supabase
       .channel(`messages-${conversationId}`)
-      .on('broadcast', { event: 'new_message' }, (payload) => {
-        const newMsg = payload.payload?.message as Message;
-        if (!newMsg || newMsg.conversation_id !== conversationId) return;
-        setData(prev => {
-          if (!prev) return prev;
-          if (prev.messages.some(m => m.id === newMsg.id)) return prev;
-          return { ...prev, messages: [...prev.messages, newMsg] };
-        });
-        setTimeout(scrollToBottom, 100);
-      })
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` },
+        (payload) => {
+          const newMsg = payload.new as Message;
+          if (!newMsg) return;
+          setData(prev => {
+            if (!prev) return prev;
+            if (prev.messages.some(m => m.id === newMsg.id)) return prev;
+            return { ...prev, messages: [...prev.messages, newMsg] };
+          });
+          setTimeout(scrollToBottom, 100);
+        }
+      )
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
