@@ -1,0 +1,59 @@
+import type { Metadata } from 'next';
+import './globals.css';
+import Navbar from '@/components/layout/Navbar';
+import Footer from '@/components/layout/Footer';
+import BannedGate from '@/components/shared/BannedGate';
+
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://rredating.com';
+
+export const metadata: Metadata = {
+  title: 'RRedating — Find Your Valorant Edate',
+  description: 'a (totally not serious) community edating site. find your edate here so you stop dropping your ep 7 immortal buddy in swiftplay',
+  metadataBase: new URL(siteUrl),
+  robots: 'noindex',
+  openGraph: {
+    title: 'RRedating — Find Your Valorant Edate',
+    description: 'a (totally not serious) community edating site. find your edate here so you stop dropping your ep 7 immortal buddy in swiftplay',
+    url: siteUrl,
+    siteName: 'RRedating',
+    images: [
+      {
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'RRedating — Find Your Valorant Edate',
+      },
+    ],
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary',
+    title: 'RRedating — Find Your Valorant Edate',
+    description: 'a (totally not serious) community edating site. find your edate here so you stop dropping your ep 7 immortal buddy in swiftplay',
+    images: ['/og-image.png'],
+  },
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Barlow+Condensed:wght@400;500;600;700;800&family=Share+Tech+Mono&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="min-h-screen flex flex-col">
+        <BannedGate>
+          <Navbar />
+          <main className="flex-1">
+            {children}
+          </main>
+          <Footer />
+        </BannedGate>
+      </body>
+    </html>
+  );
+}

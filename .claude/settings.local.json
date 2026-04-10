@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npm prune:*)",
+      "Bash(npx tsc:*)",
+      "Bash(echo \"---EXIT:$?---\")",
+      "Bash(awk '{print $1}')",
+      "Bash(npm run:*)",
+      "Bash(npm audit:*)",
+      "Bash(python3 -c \"import sys, json; data=json.load\\(sys.stdin\\); print\\('High severity:'\\); [print\\(f'{v[\\\\\"title\\\\\"]}: {v[\\\\\"range\\\\\"]}'\\) for k,v in data.get\\('vulnerabilities',{}\\).items\\(\\) for v2 in v.get\\('via',[]\\) if v2.get\\('severity'\\) in ['high', 'critical']]\")"
+    ]
+  }
+}

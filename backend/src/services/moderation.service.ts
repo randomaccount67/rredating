@@ -1,0 +1,79 @@
+import { db } from './db.js';
+import { badRequest }from '../utils/errors.js';
+import { uuidSchema } from '../utils/validation.js';
+import { securityLog } from '../utils/logger.js';
+import type { Profile } from '../types/index.js';
+
+// ─── Block ─────────────────────────────────────────────────────
+
+export async function blockUser(profile: Profile, blockedId: string) {
+  if (!blockedId) throw badRequest('blocked_profile_id is required');
+  if (blockedId === profile.id) throw badRequest('Cannot block yourself');
+  // H5 fix: Validate UUID format before interpolating into filter
+  const parsed = uuidSchema.safeParse(blockedId);
+  if (!parsed.success) throw badRequest('Invalid profile ID format');
+
+  // Insert block (ignore duplicates)
+  await db.from('blocked_users').upsert(
+    { blocker_id: profile.id, blocked_id: blockedId },
+    { ignoreDuplicates: true }
+  );
+
+  // Cascading cleanup: find conversation → delete messages → delete viewers → delete conversation
+  const { data: conv } = await db
+    .from('conversations')
+    .select('id')
+    .or(
+      `and(user_a.eq.${profile.id},user_b.eq.${blockedId}),and(user_a.eq.${blockedId},user_b.eq.${profile.id})`
+    )
+    .single();
+
+  if (conv) {
+    await Promise.all([
+      db.from('messages').delete().eq('conversation_id', conv.id),
+      db.from('conversation_viewers').delete().eq('conversation_id', conv.id),
+    ]);
+    await db.from('conversations').delete().eq('id', conv.id);
+  }
+
+  // Delete match requests between users (both directions)
+  await Promise.all([
+    db.from('match_requests').delete().eq('from_user', profile.id).eq('to_user', blockedId),
+    db.from('match_requests').delete().eq('from_user', blockedId).eq('to_user', profile.id),
+  ]);
+
+  // Delete notifications from blocked user
+  await db.from('notifications').delete().eq('user_id', profile.id).eq('related_user', blockedId);
+
+  // M6: Audit log
+  securityLog.userBlocked(profile.id, blockedId);
+
+  return { success: true };
+}
+
+// ─── Reports ───────────────────────────────────────────────────
+
+export async function createReport(profile: Profile, reportedId: string, reason: string, details?: string) {
+  if (!reportedId || !reason) throw badRequest('reported_profile_id and reason are required');
+  if (reportedId === profile.id) throw badRequest('Cannot report yourself');
+  // H5 fix: Validate UUID format
+  const parsed = uuidSchema.safeParse(reportedId);
+  if (!parsed.success) throw badRequest('Invalid profile ID format');
+
+  if (reason.length > 200) throw badRequest('Reason too long (max 200 characters)');
+  if (details && details.length > 2000) throw badRequest('Details too long (max 2000 characters)');
+
+  const { error } = await db.from('reports').insert({
+    reporter_id: profile.id,
+    reported_id: reportedId,
+    reason,
+    details: details || null,
+  });
+
+  if (error) throw new Error(error.message);
+
+  // M6: Audit log
+  securityLog.reportCreated(profile.id, reportedId, reason);
+
+  return { ok: true };
+}
