@@ -33,12 +33,24 @@ export default function MatchPage() {
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [requestStatuses, setRequestStatuses] = useState<Record<string, 'pending' | 'matched' | 'declined'>>({});
-  const [filters, setFilters] = useState<Filters>({ region: '', rank_tier: '', role: '', gender: '', mic_only: false });
+  const [filters, setFilters] = useState<Filters>({ region: '', rank_tier: 'Any', role: '', gender: '', mic_only: false });
   const [actionLoading, setActionLoading] = useState(false);
   const [reportingProfile, setReportingProfile] = useState<Profile | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [apiMisconfig, setApiMisconfig] = useState(false);
+
+  useEffect(() => {
+    const raw = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    if (typeof window === 'undefined') return;
+    const isLocalSite = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    if (!isLocalSite && /localhost|127\.0\.0\.1/.test(raw)) {
+      setApiMisconfig(true);
+    }
+  }, []);
 
   const fetchProfiles = useCallback(async (pageNum: number, currentFilters: Filters) => {
     setLoading(true);
+    setFetchError(null);
     try {
       const params = new URLSearchParams({
         page: String(pageNum),
@@ -50,7 +62,11 @@ export default function MatchPage() {
         ...(currentFilters.mic_only && { mic_only: '1' }),
       });
       const res = await api(`/api/match?${params}`);
-      if (!res.ok) throw new Error('Failed to fetch');
+      if (!res.ok) {
+        throw new Error(
+          res.status === 401 ? 'Sign in again (session invalid).' : `Server returned ${res.status}.`,
+        );
+      }
       const data = await res.json();
       if (pageNum === 0) {
         setProfiles(data.profiles);
@@ -62,19 +78,31 @@ export default function MatchPage() {
       setRequestStatuses(prev => ({ ...prev, ...data.requestStatuses }));
     } catch (e) {
       console.error(e);
+      if (pageNum === 0) {
+        setProfiles([]);
+        const msg =
+          e instanceof Error
+            ? e.message
+            : 'Could not reach the API. Check NEXT_PUBLIC_API_URL in your deploy settings.';
+        setFetchError(msg);
+      }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [api]);
 
   useEffect(() => {
     setPage(0);
     fetchProfiles(0, filters);
   }, [filters, fetchProfiles]);
 
-  // Load more when approaching the end
+  // Load more when approaching the end (avoid firing on every small list on first paint)
   useEffect(() => {
-    if (profiles.length > 0 && currentIndex >= profiles.length - 3 && hasMore && !loading) {
+    const nearEnd =
+      profiles.length >= 4
+        ? currentIndex >= profiles.length - 3
+        : currentIndex >= profiles.length - 1 && profiles.length > 0;
+    if (profiles.length > 0 && nearEnd && hasMore && !loading) {
       const nextPage = page + 1;
       setPage(nextPage);
       fetchProfiles(nextPage, filters);
@@ -122,7 +150,7 @@ export default function MatchPage() {
   };
 
   const currentProfile = profiles[currentIndex] ?? null;
-  const isDone = !loading && currentIndex >= profiles.length;
+  const isDone = !loading && !fetchError && currentIndex >= profiles.length;
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
@@ -151,6 +179,17 @@ export default function MatchPage() {
           </button>
         </div>
       </div>
+
+      {apiMisconfig && (
+        <div className="mb-4 p-3 border border-amber-600/50 bg-amber-950/40 text-amber-200/90 text-xs font-mono leading-relaxed">
+          NEXT_PUBLIC_API_URL is unset or points at localhost while the site is not on localhost. The Browse page cannot reach your API — set NEXT_PUBLIC_API_URL on Netlify to your backend URL (e.g. https://api.yourdomain.com) and redeploy.
+        </div>
+      )}
+      {fetchError && !loading && (
+        <div className="mb-4 p-3 border border-[#FF4655]/40 bg-[#FF4655]/10 text-[#E8EAF0] text-sm">
+          {fetchError}
+        </div>
+      )}
 
       {/* Filters panel */}
       {showFilters && (
@@ -218,6 +257,10 @@ export default function MatchPage() {
       {loading && profiles.length === 0 ? (
         <div className="bg-[#171A22] border border-[#252830] h-[480px] animate-pulse"
           style={{ clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%)' }} />
+      ) : fetchError && profiles.length === 0 ? (
+        <div className="text-center py-16 text-[#525566] text-sm">
+          Fix the issue above, then tap refresh.
+        </div>
       ) : isDone ? (
         <div className="text-center py-24">
           <p className="font-extrabold text-3xl uppercase text-[#2A2D35]" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>

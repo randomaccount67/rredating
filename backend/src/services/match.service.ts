@@ -5,35 +5,36 @@ import { uuidSchema } from '../utils/validation.js';
 import { securityLog } from '../utils/logger.js';
 import type { Profile } from '../types/index.js';
 
-/** PostgREST row filters for browse (RPC result or profiles table). */
-function applyBrowseFilters<T extends { eq: (c: string, v: unknown) => T; ilike: (c: string, p: string) => T; not: (c: string, o: string, v: string | null) => T }>(q: T, query: Record<string, string>): T {
-  let out = q;
-  if (query.region) out = out.eq('region', query.region);
-  if (query.role) out = out.eq('role', query.role);
-  if (query.mic_only === '1') out = out.eq('mic_on', true);
-  if (query.rank_tier && query.rank_tier !== 'Any') {
-    out = out.ilike('current_rank', `${query.rank_tier}%`);
-  }
-  if (query.gender) {
-    if (query.gender === 'Male' || query.gender === 'Female') {
-      out = out.eq('gender', query.gender);
-    } else {
-      out = out.not('gender', 'in', '("Male","Female")').not('gender', 'is', null);
+/**
+ * Region / rank / gender / mic filters applied in-process.
+ * PostgREST often does not apply `.eq()` / `.range()` correctly when chained after
+ * `.rpc()` (filters or pagination can be dropped), which produced empty Browse.
+ */
+function filterBrowseCandidates(rows: Profile[], query: Record<string, string>): Profile[] {
+  return rows.filter(p => {
+    if (query.region && p.region !== query.region) return false;
+    if (query.role && p.role !== query.role) return false;
+    if (query.mic_only === '1' && !p.mic_on) return false;
+    if (query.rank_tier && query.rank_tier !== 'Any') {
+      const prefix = query.rank_tier;
+      const rank = p.current_rank;
+      if (!rank || !rank.toLowerCase().startsWith(prefix.toLowerCase())) return false;
     }
-  }
-  return out;
+    if (query.gender) {
+      if (query.gender === 'Male' || query.gender === 'Female') {
+        if (p.gender !== query.gender) return false;
+      } else {
+        if (p.gender === 'Male' || p.gender === 'Female' || p.gender == null) return false;
+      }
+    }
+    return true;
+  });
 }
 
 /**
- * Same browse rules as get_browseable_profiles SQL, for when the RPC is missing
- * or PostgREST errors on the RPC call (service role bypasses RLS).
+ * Same rules as get_browseable_profiles SQL, when the RPC is missing or errors.
  */
-async function browseFromProfilesTable(
-  profile: Profile,
-  query: Record<string, string>,
-  offset: number,
-  rangeEnd: number,
-) {
+async function browseFromProfilesTable(profile: Profile) {
   const [passesRes, reqRes, blockOutRes, blockInRes] = await Promise.all([
     db.from('passes').select('to_user').eq('from_user', profile.id),
     db.from('match_requests').select('to_user').eq('from_user', profile.id),
@@ -63,35 +64,41 @@ async function browseFromProfilesTable(
     q = q.not('id', 'in', `(${Array.from(exclude).join(',')})`);
   }
 
-  q = applyBrowseFilters(q, query);
-  return await q.range(offset, rangeEnd);
+  return await q.order('created_at', { ascending: false }).limit(3000);
+}
+
+async function loadBrowseCandidates(profile: Profile): Promise<Profile[]> {
+  const { data, error } = await db
+    .rpc('get_browseable_profiles', { viewer_id: profile.id })
+    .select(BROWSE_COLUMNS);
+
+  if (!error && data) {
+    return data as Profile[];
+  }
+
+  if (error) {
+    securityLog.browseRpcFailed(profile.id, error.message, error.code);
+  }
+
+  const fb = await browseFromProfilesTable(profile);
+  if (fb.error || !fb.data) return [];
+  return fb.data as Profile[];
 }
 
 export async function browse(profile: Profile, query: Record<string, string>) {
   const page = parseInt(query.page || '0', 10);
   const limit = Math.min(parseInt(query.limit || '12', 10), 24);
   const offset = page * limit;
-  const rangeEnd = offset + (limit * 2) - 1;
 
-  // Apply filters before range so PostgREST filters the full RPC result, then paginates.
-  let q = db.rpc('get_browseable_profiles', { viewer_id: profile.id }).select(BROWSE_COLUMNS);
-  q = applyBrowseFilters(q, query);
-  let { data, error } = await q.range(offset, rangeEnd);
+  const candidates = filterBrowseCandidates(await loadBrowseCandidates(profile), query);
+  const windowRows = candidates.slice(offset, offset + limit * 2);
 
-  if (error) {
-    securityLog.browseRpcFailed(profile.id, error.message, error.code);
-    const fb = await browseFromProfilesTable(profile, query, offset, rangeEnd);
-    data = fb.data as Profile[] | null;
-    error = fb.error;
+  if (windowRows.length === 0) {
+    return { profiles: [], hasMore: false, requestStatuses: {} };
   }
 
-  const rows = data as Profile[] | null;
-  if (error || !rows || rows.length === 0) return { profiles: [], hasMore: false, requestStatuses: {} };
+  const shuffled = [...windowRows].sort(() => Math.random() - 0.5).slice(0, limit);
 
-  // Shuffle and slice
-  const shuffled = rows.sort(() => Math.random() - 0.5).slice(0, limit);
-
-  // Fetch request statuses
   const ids = shuffled.map(p => p.id);
   const { data: statuses } = await db
     .from('match_requests')
@@ -104,7 +111,7 @@ export async function browse(profile: Profile, query: Record<string, string>) {
 
   return {
     profiles: shuffled,
-    hasMore: rows.length > limit,
+    hasMore: windowRows.length > limit || offset + limit * 2 < candidates.length,
     requestStatuses,
   };
 }
