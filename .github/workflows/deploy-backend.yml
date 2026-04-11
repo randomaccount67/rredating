@@ -1,0 +1,46 @@
+# Push to main → SSH to Vultr → pull, build, PM2 restart (no MobaXterm).
+#
+# Setup (one-time):
+# 1. GitHub repo → Settings → Secrets and variables → Actions → New repository secrets:
+#    VPS_HOST          = your server IP or api.example.com
+#    VPS_USER          = root   (or a deploy user with sudo)
+#    VPS_SSH_KEY       = full private key that can SSH into the VPS (PEM, include BEGIN/END lines)
+#
+# 2. On the VPS, ensure this works without a password prompt:
+#      cd /opt/rredating-git && git pull
+#    If using SSH for GitHub: deploy key on the repo + ~/.ssh/config for github.com
+#    If using HTTPS: git credential helper or PAT (see GitHub docs).
+#
+# 3. Push this file to main. After that, backend deploys when you change backend/** or this workflow.
+
+name: Deploy backend (Vultr)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-backend.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull, build, restart PM2
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -e
+            cd /opt/rredating-git
+            git fetch origin
+            git reset --hard origin/main
+            cd backend
+            npm ci
+            npm run build
+            pm2 restart rredating-api || pm2 start dist/src/index.js --name rredating-api
+            pm2 save

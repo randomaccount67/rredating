@@ -42,7 +42,8 @@ function filterBrowseCandidates(rows: Profile[], query: Record<string, string>):
 }
 
 /**
- * Same rules as get_browseable_profiles SQL, when the RPC is missing or errors.
+ * Same rules as get_browseable_profiles SQL. Exclusions are applied in memory so we
+ * never rely on PostgREST `not.in` for UUID lists (often breaks or returns empty).
  */
 async function browseFromProfilesTable(profile: Profile) {
   const [passesRes, reqRes, blockOutRes, blockInRes] = await Promise.all([
@@ -63,33 +64,41 @@ async function browseFromProfilesTable(profile: Profile) {
   blockOutRes.data?.forEach(r => exclude.add(r.blocked_id));
   blockInRes.data?.forEach(r => exclude.add(r.blocker_id));
 
-  let q = db
+  const { data: rows, error } = await db
     .from('profiles')
     .select(BROWSE_COLUMNS)
     .eq('confirmed_18', true)
     .eq('is_banned', false)
-    .neq('id', profile.id);
+    .neq('id', profile.id)
+    .order('created_at', { ascending: false })
+    .limit(5000);
 
-  if (exclude.size > 0) {
-    q = q.not('id', 'in', `(${Array.from(exclude).join(',')})`);
+  if (error) {
+    return { data: null, error };
   }
 
-  return await q.order('created_at', { ascending: false }).limit(3000);
+  const list = (rows as Profile[] | null) ?? [];
+  const filtered = list.filter(p => !exclude.has(p.id));
+  return { data: filtered.slice(0, 3000), error: null };
 }
 
 async function loadBrowseCandidates(profile: Profile): Promise<Profile[]> {
-  const { data, error } = await db
+  const rpc = await db
     .rpc('get_browseable_profiles', { viewer_id: profile.id })
     .select(BROWSE_COLUMNS);
 
-  if (!error && data) {
-    return data as Profile[];
+  const fromRpc = !rpc.error && rpc.data ? (rpc.data as Profile[]) : [];
+
+  if (rpc.error) {
+    securityLog.browseRpcFailed(profile.id, rpc.error.message, rpc.error.code);
   }
 
-  if (error) {
-    securityLog.browseRpcFailed(profile.id, error.message, error.code);
+  if (fromRpc.length > 0) {
+    return fromRpc;
   }
 
+  // RPC missing, errored, or returned zero rows — duplicate logic in TS (fixes empty Browse
+  // when PostgREST mishandles RPC or the function returns no rows incorrectly).
   const fb = await browseFromProfilesTable(profile);
   if (fb.error || !fb.data) return [];
   return fb.data as Profile[];
