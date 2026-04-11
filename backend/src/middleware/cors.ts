@@ -1,8 +1,8 @@
 import cors from 'cors';
 import { config } from '../config.js';
 
-const allowedOrigins = [config.frontendUrl];
-if (config.nodeEnv !== 'production') {
+const allowedOrigins = [...config.frontendOrigins];
+if (config.nodeEnv !== 'production' && !allowedOrigins.includes('http://localhost:3000')) {
   allowedOrigins.push('http://localhost:3000');
 }
 

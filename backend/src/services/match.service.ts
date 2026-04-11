@@ -10,6 +10,16 @@ import type { Profile } from '../types/index.js';
  * PostgREST often does not apply `.eq()` / `.range()` correctly when chained after
  * `.rpc()` (filters or pagination can be dropped), which produced empty Browse.
  */
+function hasBrowseQueryFilters(query: Record<string, string>): boolean {
+  return !!(
+    query.region ||
+    (query.rank_tier && query.rank_tier !== 'Any') ||
+    query.role ||
+    query.gender ||
+    query.mic_only === '1'
+  );
+}
+
 function filterBrowseCandidates(rows: Profile[], query: Record<string, string>): Profile[] {
   return rows.filter(p => {
     if (query.region && p.region !== query.region) return false;
@@ -94,7 +104,13 @@ export async function browse(profile: Profile, query: Record<string, string>) {
   const windowRows = candidates.slice(offset, offset + limit * 2);
 
   if (windowRows.length === 0) {
-    return { profiles: [], hasMore: false, requestStatuses: {} };
+    return {
+      profiles: [],
+      hasMore: false,
+      requestStatuses: {},
+      poolSize: candidates.length,
+      filtersActive: hasBrowseQueryFilters(query),
+    };
   }
 
   const shuffled = [...windowRows].sort(() => Math.random() - 0.5).slice(0, limit);
@@ -113,6 +129,8 @@ export async function browse(profile: Profile, query: Record<string, string>) {
     profiles: shuffled,
     hasMore: windowRows.length > limit || offset + limit * 2 < candidates.length,
     requestStatuses,
+    poolSize: candidates.length,
+    filtersActive: hasBrowseQueryFilters(query),
   };
 }
 

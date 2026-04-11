@@ -38,6 +38,10 @@ export default function MatchPage() {
   const [reportingProfile, setReportingProfile] = useState<Profile | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [apiMisconfig, setApiMisconfig] = useState(false);
+  const [browseMeta, setBrowseMeta] = useState<{ poolSize: number | null; filtersActive: boolean | null }>({
+    poolSize: null,
+    filtersActive: null,
+  });
 
   useEffect(() => {
     const raw = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -76,10 +80,15 @@ export default function MatchPage() {
       }
       setHasMore(data.hasMore);
       setRequestStatuses(prev => ({ ...prev, ...data.requestStatuses }));
+      setBrowseMeta({
+        poolSize: typeof data.poolSize === 'number' ? data.poolSize : null,
+        filtersActive: typeof data.filtersActive === 'boolean' ? data.filtersActive : null,
+      });
     } catch (e) {
       console.error(e);
       if (pageNum === 0) {
         setProfiles([]);
+        setBrowseMeta({ poolSize: null, filtersActive: null });
         const msg =
           e instanceof Error
             ? e.message
@@ -262,11 +271,33 @@ export default function MatchPage() {
           Fix the issue above, then tap refresh.
         </div>
       ) : isDone ? (
-        <div className="text-center py-24">
-          <p className="font-extrabold text-3xl uppercase text-[#2A2D35]" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
-            NO MORE PLAYERS
-          </p>
-          <p className="text-[#525566] text-sm mt-2">Adjust your filters or check back later.</p>
+        <div className="text-center py-24 max-w-md mx-auto px-2">
+          {profiles.length === 0 && browseMeta.poolSize === 0 && !browseMeta.filtersActive ? (
+            <>
+              <p className="font-extrabold text-2xl uppercase text-[#E8EAF0]" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                NO ONE TO SHOW YET
+              </p>
+              <p className="text-[#8B90A8] text-sm mt-3 leading-relaxed">
+                The API is working, but the browse pool is empty. You need at least one other account that finished signup
+                (18+ confirmed). People who never completed onboarding can appear in Admin but not here. Ask someone else to register,
+                or in Supabase set <span className="font-mono text-[#00E5FF]/80">confirmed_18 = true</span> on test profiles.
+              </p>
+            </>
+          ) : profiles.length === 0 && browseMeta.poolSize === 0 && browseMeta.filtersActive ? (
+            <>
+              <p className="font-extrabold text-2xl uppercase text-[#E8EAF0]" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                NO MATCHES FOR FILTERS
+              </p>
+              <p className="text-[#8B90A8] text-sm mt-3">Try clearing filters or widening rank/region.</p>
+            </>
+          ) : (
+            <>
+              <p className="font-extrabold text-3xl uppercase text-[#2A2D35]" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                NO MORE PLAYERS
+              </p>
+              <p className="text-[#525566] text-sm mt-2">Adjust your filters or check back later.</p>
+            </>
+          )}
           <button
             onClick={() => { setPage(0); fetchProfiles(0, filters); }}
             className="mt-6 btn-ghost text-xs"

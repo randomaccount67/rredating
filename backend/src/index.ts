@@ -54,7 +54,7 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 app.listen(config.port, () => {
   console.log(`🚀 RRedating API running on port ${config.port}`);
   console.log(`   Environment: ${config.nodeEnv}`);
-  console.log(`   Frontend:    ${config.frontendUrl}`);
+  console.log(`   Frontend:    ${config.frontendOrigins.join(', ')}`);
 });
 
 export default app;
