@@ -276,6 +276,41 @@ create policy "Only service role can delete blocks" on blocked_users
   for delete using (false);
 
 -- ============================================================
+-- BROWSE — RPC used by backend match service (avoids huge query strings)
+-- ============================================================
+-- Run idempotently alongside the rest of this file. If this was missing in
+-- production, GET /api/match returned empty while admin lists still worked.
+create or replace function public.get_browseable_profiles(viewer_id uuid)
+returns setof profiles
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  return query
+  select p.*
+  from profiles p
+  where p.confirmed_18 = true
+    and p.is_banned = false
+    and p.id != viewer_id
+    and p.id not in (
+      select to_user from passes where from_user = viewer_id
+    )
+    and p.id not in (
+      select to_user from match_requests where from_user = viewer_id
+    )
+    and p.id not in (
+      select blocked_id from blocked_users where blocker_id = viewer_id
+    )
+    and p.id not in (
+      select blocker_id from blocked_users where blocked_id = viewer_id
+    );
+end;
+$$;
+
+grant execute on function public.get_browseable_profiles(uuid) to anon, authenticated, service_role;
+
+-- ============================================================
 -- REALTIME — enable realtime for messages and notifications
 -- ============================================================
 alter publication supabase_realtime add table messages;

@@ -1,14 +1,18 @@
--- rredating: Stability Fixes
--- Run this script in your Supabase SQL Editor to deploy the Browse RPC function.
--- This mitigates the HTTP 414 Request-URI Too Long crash when generating the exclusion list.
+-- rredating: Browse RPC (duplicate of supabase-schema.sql)
+-- Prefer applying the full supabase-schema.sql in the Supabase SQL Editor so
+-- this function stays in sync. This file is kept for one-off deploys.
 
-CREATE OR REPLACE FUNCTION get_browseable_profiles(viewer_id UUID)
-RETURNS SETOF profiles AS $$
+CREATE OR REPLACE FUNCTION public.get_browseable_profiles(viewer_id UUID)
+RETURNS SETOF profiles
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
   RETURN QUERY
   SELECT p.*
   FROM profiles p
-  WHERE p.confirmed_18 = true 
+  WHERE p.confirmed_18 = true
     AND p.is_banned = false
     AND p.id != viewer_id
     AND p.id NOT IN (
@@ -24,4 +28,6 @@ BEGIN
       SELECT blocker_id FROM blocked_users WHERE blocked_id = viewer_id
     );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_browseable_profiles(uuid) TO anon, authenticated, service_role;

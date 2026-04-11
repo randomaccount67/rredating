@@ -2,35 +2,89 @@ import { db } from './db.js';
 import { AppError, badRequest, notFound } from '../utils/errors.js';
 import { BROWSE_COLUMNS } from '../utils/columns.js';
 import { uuidSchema } from '../utils/validation.js';
+import { securityLog } from '../utils/logger.js';
 import type { Profile } from '../types/index.js';
+
+/** PostgREST row filters for browse (RPC result or profiles table). */
+function applyBrowseFilters<T extends { eq: (c: string, v: unknown) => T; ilike: (c: string, p: string) => T; not: (c: string, o: string, v: string | null) => T }>(q: T, query: Record<string, string>): T {
+  let out = q;
+  if (query.region) out = out.eq('region', query.region);
+  if (query.role) out = out.eq('role', query.role);
+  if (query.mic_only === '1') out = out.eq('mic_on', true);
+  if (query.rank_tier && query.rank_tier !== 'Any') {
+    out = out.ilike('current_rank', `${query.rank_tier}%`);
+  }
+  if (query.gender) {
+    if (query.gender === 'Male' || query.gender === 'Female') {
+      out = out.eq('gender', query.gender);
+    } else {
+      out = out.not('gender', 'in', '("Male","Female")').not('gender', 'is', null);
+    }
+  }
+  return out;
+}
+
+/**
+ * Same browse rules as get_browseable_profiles SQL, for when the RPC is missing
+ * or PostgREST errors on the RPC call (service role bypasses RLS).
+ */
+async function browseFromProfilesTable(
+  profile: Profile,
+  query: Record<string, string>,
+  offset: number,
+  rangeEnd: number,
+) {
+  const [passesRes, reqRes, blockOutRes, blockInRes] = await Promise.all([
+    db.from('passes').select('to_user').eq('from_user', profile.id),
+    db.from('match_requests').select('to_user').eq('from_user', profile.id),
+    db.from('blocked_users').select('blocked_id').eq('blocker_id', profile.id),
+    db.from('blocked_users').select('blocker_id').eq('blocked_id', profile.id),
+  ]);
+
+  const prefetchErr = passesRes.error || reqRes.error || blockOutRes.error || blockInRes.error;
+  if (prefetchErr) {
+    return { data: null as Profile[] | null, error: prefetchErr };
+  }
+
+  const exclude = new Set<string>();
+  passesRes.data?.forEach(r => exclude.add(r.to_user));
+  reqRes.data?.forEach(r => exclude.add(r.to_user));
+  blockOutRes.data?.forEach(r => exclude.add(r.blocked_id));
+  blockInRes.data?.forEach(r => exclude.add(r.blocker_id));
+
+  let q = db
+    .from('profiles')
+    .select(BROWSE_COLUMNS)
+    .eq('confirmed_18', true)
+    .eq('is_banned', false)
+    .neq('id', profile.id);
+
+  if (exclude.size > 0) {
+    q = q.not('id', 'in', `(${Array.from(exclude).join(',')})`);
+  }
+
+  q = applyBrowseFilters(q, query);
+  return await q.range(offset, rangeEnd);
+}
 
 export async function browse(profile: Profile, query: Record<string, string>) {
   const page = parseInt(query.page || '0', 10);
   const limit = Math.min(parseInt(query.limit || '12', 10), 24);
   const offset = page * limit;
+  const rangeEnd = offset + (limit * 2) - 1;
 
-  // Build query using RPC to avoid 414 Request-URI Too Long
-  let q = db
-    .rpc('get_browseable_profiles', { viewer_id: profile.id })
-    .select(BROWSE_COLUMNS)
-    .range(offset, offset + (limit * 2) - 1);
+  // Apply filters before range so PostgREST filters the full RPC result, then paginates.
+  let q = db.rpc('get_browseable_profiles', { viewer_id: profile.id }).select(BROWSE_COLUMNS);
+  q = applyBrowseFilters(q, query);
+  let { data, error } = await q.range(offset, rangeEnd);
 
-  // Apply filters
-  if (query.region) q = q.eq('region', query.region);
-  if (query.role) q = q.eq('role', query.role);
-  if (query.mic_only === '1') q = q.eq('mic_on', true);
-  if (query.rank_tier && query.rank_tier !== 'Any') {
-    q = q.ilike('current_rank', `${query.rank_tier}%`);
-  }
-  if (query.gender) {
-    if (query.gender === 'Male' || query.gender === 'Female') {
-      q = q.eq('gender', query.gender);
-    } else {
-      q = q.not('gender', 'in', '("Male","Female")').not('gender', 'is', null);
-    }
+  if (error) {
+    securityLog.browseRpcFailed(profile.id, error.message, error.code);
+    const fb = await browseFromProfilesTable(profile, query, offset, rangeEnd);
+    data = fb.data as Profile[] | null;
+    error = fb.error;
   }
 
-  const { data, error } = await q;
   const rows = data as Profile[] | null;
   if (error || !rows || rows.length === 0) return { profiles: [], hasMore: false, requestStatuses: {} };
 

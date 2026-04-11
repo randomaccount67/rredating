@@ -72,4 +72,9 @@ export const securityLog = {
   validationFailed(ip: string, path: string, errors: string[]) {
     log('warn', 'validation_failed', { ip, path, errors });
   },
+
+  /** Browse RPC failed — fallback may be used */
+  browseRpcFailed(profileId: string, message: string, code?: string) {
+    log('warn', 'browse_rpc_failed', { profileId, message, code });
+  },
 };
