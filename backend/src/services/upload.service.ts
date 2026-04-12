@@ -29,7 +29,7 @@ export async function uploadAvatar(
 
   // M3 fix: Derive extension from validated MIME type, not user-supplied filename
   const ext = EXT_MAP[detected.mime] || 'jpg';
-  const path = `avatars/${authUserId}-${Date.now()}.${ext}`;
+  const path = `${authUserId}-${Date.now()}.${ext}`;
 
   const { error } = await db.storage
     .from('avatars')

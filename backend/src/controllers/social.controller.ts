@@ -26,12 +26,12 @@ export const sendMessage = wrap(async (req: Request, res: Response) => {
 // ─── Presence ──────────────────────────────────────────────────
 
 export const heartbeat = wrap(async (req: Request, res: Response) => {
-  const result = await messagesService.heartbeat(req.profile!.id, req.body.conversation_id);
+  const result = await messagesService.heartbeat(req.profile!.id, req.body.conversation_id ?? null);
   res.json(result);
 });
 
 export const leave = wrap(async (req: Request, res: Response) => {
-  const result = await messagesService.leave(req.profile!.id, req.body.conversation_id);
+  const result = await messagesService.leave(req.profile!.id, req.body.conversation_id ?? null);
   res.json(result);
 });
 

@@ -168,6 +168,7 @@ export default function OnboardingPage() {
             placeholder="smurf"
             value={form.riot_tag}
             onChange={e => set('riot_tag', e.target.value)}
+            maxLength={5}
           />
         </div>
       </div>

@@ -2,7 +2,6 @@
 import { useApi } from '@/lib/api';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase';
 import { Upload, Save, Check, AlertTriangle, UserX } from 'lucide-react';
 import { RANKS, REGIONS, ROLES, MUSIC_TAGS, AGENTS, Profile } from '@/types';
 
@@ -24,9 +23,6 @@ export default function ProfilePage() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState('');
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
   const [unblocking, setUnblocking] = useState<string | null>(null);
 
@@ -152,24 +148,6 @@ export default function ProfilePage() {
     }
   };
 
-  const handleDelete = async () => {
-    setDeleting(true);
-    setDeleteError('');
-    try {
-      const res = await api('/api/account', { method: 'DELETE' });
-      if (!res.ok) {
-        const d = await res.json();
-        throw new Error(d.error || 'Deletion failed');
-      }
-      const supabase = createClient();
-      await supabase.auth.signOut();
-      router.push('/');
-    } catch (e: unknown) {
-      setDeleteError(e instanceof Error ? e.message : 'Deletion failed');
-      setDeleting(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
@@ -268,7 +246,7 @@ export default function ProfilePage() {
               </div>
               <div>
                 <label className="label block mb-1.5">TAG</label>
-                <input className={inputCls} value={form.riot_tag} onChange={e => set('riot_tag', e.target.value)} placeholder="FRAG" />
+                <input className={inputCls} value={form.riot_tag} onChange={e => set('riot_tag', e.target.value)} placeholder="FRAG" maxLength={5} />
               </div>
             </div>
 
@@ -457,48 +435,6 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Danger zone */}
-        <div className="bg-[#1B1814] border-2 border-[#FF3C3C]/20" style={{ borderTop: '3px solid #FF3C3C' }}>
-          <div className="p-5">
-            <SectionHeader color="#FF3C3C">DANGER ZONE</SectionHeader>
-            <p className="text-[#857A6A] text-sm mb-4">
-              Permanently delete your account, profile, and all associated data. This cannot be undone.
-            </p>
-            {deleteError && (
-              <div className="flex items-center gap-2 text-[#FF3C3C] text-sm bg-[#FF3C3C]/5 border-2 border-[#FF3C3C]/20 px-3 py-2 mb-3">
-                <AlertTriangle size={12} /> {deleteError}
-              </div>
-            )}
-            {!showDeleteConfirm ? (
-              <button
-                onClick={() => setShowDeleteConfirm(true)}
-                className="px-4 py-2 text-xs font-bold uppercase border-2 border-[#FF3C3C]/40 text-[#FF3C3C] hover:bg-[#FF3C3C]/8 transition-all"
-                style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
-              >
-                DELETE ACCOUNT
-              </button>
-            ) : (
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleDelete}
-                  disabled={deleting}
-                  className="px-4 py-2 text-xs font-black uppercase bg-[#FF3C3C] text-white hover:opacity-90 transition-opacity disabled:opacity-50"
-                  style={{ fontFamily: 'Barlow Condensed, sans-serif', boxShadow: '3px 3px 0px rgba(255,60,60,0.25)' }}
-                >
-                  {deleting ? 'DELETING...' : 'CONFIRM DELETE'}
-                </button>
-                <button
-                  onClick={() => { setShowDeleteConfirm(false); setDeleteError(''); }}
-                  disabled={deleting}
-                  className="px-4 py-2 text-xs font-bold uppercase border-2 border-[#2F2B24] text-[#857A6A] hover:border-[#3A3530] transition-all disabled:opacity-50"
-                  style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
-                >
-                  CANCEL
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
       </div>
     </div>
   );

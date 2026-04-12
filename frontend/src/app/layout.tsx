@@ -3,6 +3,7 @@ import './globals.css';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import BannedGate from '@/components/shared/BannedGate';
+import ThemeApplicator from '@/components/shared/ThemeApplicator';
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://rredating.com';
 const maintenanceMode = process.env.MAINTENANCE_MODE === 'true';
@@ -51,6 +52,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="min-h-screen flex flex-col">
+        <ThemeApplicator />
         {maintenanceMode ? (
           <div className="min-h-screen flex flex-col items-center justify-center bg-[#0D0F14] px-4 text-center">
             <div className="border-2 border-[#FF4655] px-3 py-1 mb-8 inline-block">

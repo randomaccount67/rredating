@@ -2,7 +2,7 @@
 import { useApi } from '@/lib/api';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { MessageSquare, UserCheck, Clock, BadgeCheck } from 'lucide-react';
+import { MessageSquare, UserCheck, Clock, BadgeCheck, Heart } from 'lucide-react';
 import { createClient } from '@/lib/supabase';
 import ProfileModal from '@/components/profile/ProfileModal';
 import { Profile } from '@/types';
@@ -27,7 +27,8 @@ export default function InboxPage() {
   const router = useRouter();
   const [items, setItems] = useState<InboxItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'requests' | 'chats'>('requests');
+  const [tab, setTab] = useState<'requests' | 'chats' | 'friends'>('requests');
+  const [friendIds, setFriendIds] = useState<Set<string>>(new Set());
   const [myProfileId, setMyProfileId] = useState<string | null>(null);
   const [viewingProfile, setViewingProfile] = useState<Profile | null>(null);
 
@@ -49,6 +50,10 @@ export default function InboxPage() {
 
   useEffect(() => {
     fetchInbox(true);
+    try {
+      const stored = localStorage.getItem('friend_ids');
+      if (stored) setFriendIds(new Set(JSON.parse(stored)));
+    } catch { /* ignore */ }
   }, [fetchInbox]);
 
   // Realtime: new match requests coming in
@@ -97,6 +102,7 @@ export default function InboxPage() {
 
   const requests = items.filter(i => i.type === 'match_request');
   const chats = items.filter(i => i.type === 'conversation');
+  const friends = chats.filter(c => friendIds.has(c.user.id));
 
   const handleAccept = async (requestId: string) => {
     try {
@@ -105,10 +111,8 @@ export default function InboxPage() {
         body: JSON.stringify({ request_id: requestId, action: 'accept' }),
       });
       if (res.ok) {
-        setItems(prev => prev.map(i =>
-          i.id === requestId ? { ...i, status: 'matched' } : i
-        ));
-        // Refresh to get conversation link
+        // Remove immediately from requests tab, then refresh to pick up the new conversation
+        setItems(prev => prev.filter(i => i.id !== requestId));
         fetchInbox();
       }
     } catch (e) {
@@ -142,10 +146,11 @@ export default function InboxPage() {
         {[
           { key: 'requests', label: 'DUO REQUESTS', icon: <UserCheck size={14} />, count: requests.filter(r => r.status === 'pending').length, activeColor: '#FF4655' },
           { key: 'chats', label: 'MESSAGES', icon: <MessageSquare size={14} />, count: chats.reduce((acc, c) => acc + (c.unread ?? 0), 0), activeColor: '#00E5FF' },
+          { key: 'friends', label: 'FRIENDS', icon: <Heart size={14} />, count: 0, activeColor: '#FF7EB3' },
         ].map(t => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key as 'requests' | 'chats')}
+            onClick={() => setTab(t.key as 'requests' | 'chats' | 'friends')}
             className={`flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 relative ${tab === t.key ? 'border-b-2' : 'border-transparent text-[#8B90A8] hover:text-[#ECF0F8]'}`}
             style={{
               fontFamily: 'Barlow Condensed, sans-serif',
@@ -244,6 +249,58 @@ export default function InboxPage() {
                 ) : req.status === 'matched' ? (
                   <span className="text-xs font-mono text-green-400 border border-green-400/20 px-2 py-1">MATCHED</span>
                 ) : null}
+              </div>
+            ))
+          )}
+        </div>
+      ) : tab === 'friends' ? (
+        <div className="space-y-2">
+          {friends.length === 0 ? (
+            <div className="text-center py-16">
+              <Heart size={32} className="text-[#2A2D35] mx-auto mb-3" />
+              <p className="font-bold text-xl uppercase text-[#2A2D35]" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                NO FRIENDS YET
+              </p>
+              <p className="text-[#525566] text-sm mt-1">Open a chat and tap Add Friend</p>
+            </div>
+          ) : (
+            friends.map(chat => (
+              <div
+                key={chat.id}
+                className="flex items-center gap-4 border p-4 transition-all cursor-pointer bg-[#171A22] border-[#FF7EB3]/20 hover:border-[#FF7EB3]/40"
+                onClick={() => router.push(`/inbox/${chat.conversation_id}`)}
+              >
+                <button
+                  className="w-12 h-12 bg-[#11141B] border border-[#252830] overflow-hidden flex-shrink-0 hover:border-[#FF7EB3]/40 transition-colors"
+                  style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}
+                  onClick={e => { e.stopPropagation(); setViewingProfile(buildProfile(chat.user)); }}
+                  title="View profile"
+                >
+                  {chat.user.avatar_url ? (
+                    <img src={chat.user.avatar_url} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center font-mono text-[#525566]">
+                      {chat.user.riot_id?.[0]?.toUpperCase() ?? '?'}
+                    </div>
+                  )}
+                </button>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      className="text-sm text-[#E8EAF0] hover:text-[#FF7EB3] transition-colors text-left"
+                      onClick={e => { e.stopPropagation(); setViewingProfile(buildProfile(chat.user)); }}
+                    >
+                      {chat.user.riot_id}#{chat.user.riot_tag}
+                    </button>
+                    {chat.user.is_verified && (
+                      <div title="Verified"><BadgeCheck size={13} className="text-blue-400 flex-shrink-0" /></div>
+                    )}
+                  </div>
+                  {chat.last_message && (
+                    <p className="text-xs truncate mt-0.5 text-[#525566]">{chat.last_message}</p>
+                  )}
+                </div>
+                <Heart size={12} className="text-[#FF7EB3] flex-shrink-0" fill="#FF7EB3" />
               </div>
             ))
           )}

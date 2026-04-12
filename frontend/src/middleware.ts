@@ -1,7 +1,7 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-const publicRoutes = ['/', '/sign-in', '/sign-up', '/terms', '/privacy', '/disclaimer', '/riot.txt', '/auth/callback'];
+const publicRoutes = ['/', '/sign-in', '/sign-up', '/terms', '/privacy', '/disclaimer', '/riot.txt', '/robots.txt', '/auth/callback'];
 
 function isPublic(pathname: string): boolean {
   return publicRoutes.some(route => pathname === route || pathname.startsWith(route + '/'));

@@ -102,8 +102,16 @@ export async function sendMessage(profile: Profile, conversationId: string, cont
 
 // ─── Presence ──────────────────────────────────────────────────
 
-export async function heartbeat(profileId: string, conversationId: string) {
-  if (!conversationId) throw badRequest('conversation_id is required');
+export async function heartbeat(profileId: string, conversationId: string | null) {
+  const now = new Date().toISOString();
+
+  // Always mark user as online and update last_seen
+  await db
+    .from('profiles')
+    .update({ is_online: true, last_seen: now })
+    .eq('id', profileId);
+
+  if (!conversationId) return { success: true };
 
   // H4 fix: Verify the user is a participant of this conversation
   const { data: conv } = await db
@@ -120,13 +128,19 @@ export async function heartbeat(profileId: string, conversationId: string) {
     .upsert({
       user_id: profileId,
       conversation_id: conversationId,
-      last_seen_at: new Date().toISOString(),
+      last_seen_at: now,
     });
   return { success: true };
 }
 
-export async function leave(profileId: string, conversationId: string) {
-  if (!conversationId) throw badRequest('conversation_id is required');
+export async function leave(profileId: string, conversationId: string | null) {
+  // Mark user as offline
+  await db
+    .from('profiles')
+    .update({ is_online: false })
+    .eq('id', profileId);
+
+  if (!conversationId) return { success: true };
 
   // H4 fix: Verify the user is a participant of this conversation
   const { data: conv } = await db
@@ -136,7 +150,7 @@ export async function leave(profileId: string, conversationId: string) {
     .or(`user_a.eq.${profileId},user_b.eq.${profileId}`)
     .single();
 
-  if (!conv) throw forbidden('Not your conversation');
+  if (!conv) return { success: true }; // Silently succeed — user may have already left
 
   await db
     .from('conversation_viewers')

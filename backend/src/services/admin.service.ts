@@ -36,7 +36,8 @@ export async function toggleVerified(adminProfile: Profile, targetId: string, ve
   const parsed = uuidSchema.safeParse(targetId);
   if (!parsed.success) throw badRequest('Invalid profile ID format');
 
-  await db.from('profiles').update({ is_verified: verify }).eq('id', targetId);
+  const { error } = await db.from('profiles').update({ is_verified: verify }).eq('id', targetId);
+  if (error) throw new Error(`Failed to update verification status: ${error.message}`);
   securityLog.adminAction(adminProfile.id, verify ? 'verify_user' : 'unverify_user', targetId);
 
   return { success: true };

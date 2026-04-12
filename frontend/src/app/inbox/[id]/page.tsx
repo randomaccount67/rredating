@@ -3,7 +3,7 @@ import { useApi } from '@/lib/api';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Send, ArrowLeft, AlertTriangle, Flag, UserX } from 'lucide-react';
+import { Send, ArrowLeft, AlertTriangle, Flag, UserX, Heart } from 'lucide-react';
 import ReportModal from '@/components/shared/ReportModal';
 import ProfileModal from '@/components/profile/ProfileModal';
 import { createClient } from '@/lib/supabase';
@@ -41,6 +41,7 @@ export default function MessageThreadPage() {
   const [showProfile, setShowProfile] = useState(false);
   const [showBlockConfirm, setShowBlockConfirm] = useState(false);
   const [blocking, setBlocking] = useState(false);
+  const [isFriend, setIsFriend] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -74,6 +75,29 @@ export default function MessageThreadPage() {
       leave();
     };
   }, [params.id]);
+
+  // Load friend status from localStorage once we know the other user's ID
+  useEffect(() => {
+    if (!data?.other_user.id) return;
+    try {
+      const stored = localStorage.getItem('friend_ids');
+      const ids: string[] = stored ? JSON.parse(stored) : [];
+      setIsFriend(ids.includes(data.other_user.id));
+    } catch { /* ignore */ }
+  }, [data?.other_user.id]);
+
+  const toggleFriend = () => {
+    if (!data?.other_user.id) return;
+    try {
+      const stored = localStorage.getItem('friend_ids');
+      const ids: string[] = stored ? JSON.parse(stored) : [];
+      const newIds = isFriend
+        ? ids.filter(id => id !== data.other_user.id)
+        : [...ids, data.other_user.id];
+      localStorage.setItem('friend_ids', JSON.stringify(newIds));
+      setIsFriend(!isFriend);
+    } catch { /* ignore */ }
+  };
 
   useEffect(() => {
     async function fetchConversation() {
@@ -220,9 +244,18 @@ export default function MessageThreadPage() {
 
         <div className="flex items-center gap-1 flex-shrink-0">
           <button
+            onClick={toggleFriend}
+            className={`transition-colors p-1 ${isFriend ? 'text-[#FF7EB3]' : 'text-[#525566] hover:text-[#FF7EB3]'}`}
+            title={isFriend ? 'Remove friend' : 'Add friend'}
+            aria-label={isFriend ? 'Remove friend' : 'Add friend'}
+          >
+            <Heart size={14} fill={isFriend ? '#FF7EB3' : 'none'} />
+          </button>
+          <button
             onClick={() => setShowBlockConfirm(true)}
             className="text-[#525566] hover:text-[#FF4655] transition-colors p-1"
             title="Block this user"
+            aria-label="Block this user"
           >
             <UserX size={14} />
           </button>
@@ -230,6 +263,7 @@ export default function MessageThreadPage() {
             onClick={() => setShowReport(true)}
             className="text-[#525566] hover:text-[#FF4655] transition-colors p-1"
             title="Report this user"
+            aria-label="Report this user"
           >
             <Flag size={14} />
           </button>

@@ -224,3 +224,24 @@ input::placeholder, textarea::placeholder {
   -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
 }
+
+/* Colorblind mode — replaces red/cyan with amber/blue for red-green colorblindness */
+[data-colorblind] {
+  --accent: #E8890A;
+  --accent-dim: rgba(232, 137, 10, 0.12);
+  --accent-hover: #F09820;
+  --border-accent: #E8890A;
+  --accent-cyan: #4A90E2;
+  --accent-cyan-dim: rgba(74, 144, 226, 0.10);
+  --online: #4A90E2;
+}
+
+/* High contrast mode — increases text and border contrast */
+[data-high-contrast] {
+  --text-primary: #FFFFFF;
+  --text-secondary: #CCCCCC;
+  --text-muted: #888888;
+  --border: #555566;
+  --bg-card: #1A1D26;
+  --bg-elevated: #20232C;
+}
