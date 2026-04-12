@@ -75,7 +75,7 @@ export default function ProfileModal({ profile, onClose, onSendRequest, onPass, 
                     {displayName}
                   </h2>
                   {profile.is_verified && (
-                    <BadgeCheck size={16} className="text-blue-400 flex-shrink-0" title="Verified" />
+                    <div title="Verified"><BadgeCheck size={16} className="text-blue-400 flex-shrink-0" /></div>
                   )}
                 </div>
                 <div className="flex items-center gap-2 mt-1.5 flex-wrap">
