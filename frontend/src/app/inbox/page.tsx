@@ -210,7 +210,7 @@ export default function InboxPage() {
                       {req.user.riot_id}#{req.user.riot_tag}
                     </button>
                     {req.user.is_verified && (
-                      <BadgeCheck size={13} className="text-blue-400 flex-shrink-0" title="Verified" />
+                      <div title="Verified"><BadgeCheck size={13} className="text-blue-400 flex-shrink-0" /></div>
                     )}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
@@ -295,7 +295,7 @@ export default function InboxPage() {
                       {chat.user.riot_id}#{chat.user.riot_tag}
                     </button>
                     {chat.user.is_verified && (
-                      <BadgeCheck size={13} className="text-blue-400 flex-shrink-0" title="Verified" />
+                      <div title="Verified"><BadgeCheck size={13} className="text-blue-400 flex-shrink-0" /></div>
                     )}
                   </div>
                   {chat.last_message && (
