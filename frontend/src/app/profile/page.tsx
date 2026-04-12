@@ -1,11 +1,16 @@
 'use client';
 import { useApi } from '@/lib/api';
 import { useState, useEffect, useRef } from 'react';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
-import { Upload, Save, Check, AlertTriangle } from 'lucide-react';
+import { Upload, Save, Check, AlertTriangle, UserX } from 'lucide-react';
 import { RANKS, REGIONS, ROLES, MUSIC_TAGS, AGENTS, Profile } from '@/types';
+
+interface BlockedUser {
+  blocked_id: string;
+  created_at: string;
+  profiles: { id: string; riot_id: string | null; riot_tag: string | null; avatar_url: string | null } | null;
+}
 
 export default function ProfilePage() {
   const api = useApi();
@@ -22,6 +27,8 @@ export default function ProfilePage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
+  const [unblocking, setUnblocking] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     gender: '', gender_other: '',
@@ -33,9 +40,12 @@ export default function ProfilePage() {
   useEffect(() => {
     async function fetch_profile() {
       try {
-        const res = await api('/api/profile');
-        if (res.ok) {
-          const data = await res.json();
+        const [profileRes, blockedRes] = await Promise.all([
+          api('/api/profile'),
+          api('/api/block'),
+        ]);
+        if (profileRes.ok) {
+          const data = await profileRes.json();
           if (data.profile) {
             setProfile(data.profile);
             const storedGender = data.profile.gender ?? '';
@@ -60,6 +70,10 @@ export default function ProfilePage() {
             return;
           }
         }
+        if (blockedRes.ok) {
+          const bd = await blockedRes.json();
+          setBlockedUsers(bd.blocked ?? []);
+        }
       } catch (e) {
         console.error(e);
       } finally {
@@ -68,6 +82,23 @@ export default function ProfilePage() {
     }
     fetch_profile();
   }, [router]);
+
+  const handleUnblock = async (blockedProfileId: string) => {
+    setUnblocking(blockedProfileId);
+    try {
+      const res = await api('/api/block', {
+        method: 'DELETE',
+        body: JSON.stringify({ blocked_profile_id: blockedProfileId }),
+      });
+      if (res.ok) {
+        setBlockedUsers(prev => prev.filter(b => b.blocked_id !== blockedProfileId));
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setUnblocking(null);
+    }
+  };
 
   const set = (key: string, value: unknown) => setForm(prev => ({ ...prev, [key]: value }));
 
@@ -125,7 +156,7 @@ export default function ProfilePage() {
     setDeleting(true);
     setDeleteError('');
     try {
-      const res = await api('/api/account/delete', { method: 'DELETE' });
+      const res = await api('/api/account', { method: 'DELETE' });
       if (!res.ok) {
         const d = await res.json();
         throw new Error(d.error || 'Deletion failed');
@@ -188,7 +219,7 @@ export default function ProfilePage() {
                 onClick={() => fileInputRef.current?.click()}
               >
                 {displayAvatar ? (
-                  <Image src={displayAvatar} alt="avatar" width={80} height={80} className="w-full h-full object-cover" />
+                  <img src={displayAvatar} alt="avatar" className="w-full h-full object-cover" />
                 ) : (
                   <Upload size={22} className="text-[#4A4440]" />
                 )}
@@ -385,6 +416,46 @@ export default function ProfilePage() {
         >
           {saved ? <><Check size={16} /> SAVED</> : saving ? 'SAVING...' : <><Save size={16} /> SAVE CHANGES</>}
         </button>
+
+        {/* Blocked Users */}
+        <div className={section} style={{ borderTop: '3px solid #525566' }}>
+          <div className="p-5">
+            <SectionHeader color="#525566">BLOCKED USERS</SectionHeader>
+            {blockedUsers.length === 0 ? (
+              <p className="text-[#857A6A] text-sm">You haven&apos;t blocked anyone.</p>
+            ) : (
+              <div className="space-y-2">
+                {blockedUsers.map(b => {
+                  const p = b.profiles;
+                  const name = p?.riot_id ? `${p.riot_id}#${p.riot_tag}` : 'Unknown User';
+                  return (
+                    <div key={b.blocked_id} className="flex items-center gap-3 bg-[#131009] border border-[#2F2B24] px-3 py-2">
+                      <div className="w-8 h-8 bg-[#1B1814] border border-[#2F2B24] overflow-hidden flex-shrink-0">
+                        {p?.avatar_url ? (
+                          <img src={p.avatar_url} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center font-mono text-[#525566] text-xs">
+                            {p?.riot_id?.[0]?.toUpperCase() ?? '?'}
+                          </div>
+                        )}
+                      </div>
+                      <span className="font-mono text-xs text-[#857A6A] flex-1 truncate">{name}</span>
+                      <button
+                        onClick={() => handleUnblock(b.blocked_id)}
+                        disabled={unblocking === b.blocked_id}
+                        className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase border border-[#2F2B24] text-[#857A6A] hover:border-[#00E5FF]/40 hover:text-[#00E5FF] transition-all disabled:opacity-50"
+                        style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
+                      >
+                        <UserX size={10} />
+                        {unblocking === b.blocked_id ? '...' : 'UNBLOCK'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Danger zone */}
         <div className="bg-[#1B1814] border-2 border-[#FF3C3C]/20" style={{ borderTop: '3px solid #FF3C3C' }}>

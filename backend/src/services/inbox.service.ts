@@ -3,8 +3,8 @@ import { PROFILE_PUBLIC_COLUMNS } from '../utils/columns.js';
 import type { Profile } from '../types/index.js';
 
 export async function getInbox(profile: Profile) {
-  // Fetch in parallel: requests, conversations, unread counts
-  const [requestsRes, convsRes, unreadsRes] = await Promise.all([
+  // Fetch in parallel: requests, conversations, unread counts, matched user IDs
+  const [requestsRes, convsRes, unreadsRes, matchedRes] = await Promise.all([
     db.from('match_requests')
       .select('id, from_user, status, created_at, profiles!match_requests_from_user_fkey(id, riot_id, riot_tag, avatar_url, current_rank, peak_rank, role, agents, music_tags, about, gender, region, favorite_artist, is_online, created_at, age)')
       .eq('to_user', profile.id)
@@ -19,6 +19,10 @@ export async function getInbox(profile: Profile) {
       .eq('user_id', profile.id)
       .eq('type', 'new_message')
       .eq('read', false),
+    db.from('match_requests')
+      .select('from_user, to_user')
+      .or(`from_user.eq.${profile.id},to_user.eq.${profile.id}`)
+      .eq('status', 'matched'),
   ]);
 
   // Build unread-by-user map
@@ -38,8 +42,18 @@ export async function getInbox(profile: Profile) {
     created_at: r.created_at,
   }));
 
+  // Build set of matched user IDs to filter conversations
+  const matchedUserIds = new Set<string>();
+  matchedRes.data?.forEach(m => {
+    if (m.from_user === profile.id) matchedUserIds.add(m.to_user);
+    else matchedUserIds.add(m.from_user);
+  });
+
   // Build conversation items with last messages + partner profiles
-  const conversations = convsRes.data || [];
+  const conversations = (convsRes.data || []).filter((conv: any) => {
+    const otherId = conv.user_a === profile.id ? conv.user_b : conv.user_a;
+    return matchedUserIds.has(otherId);
+  });
   const convItems = await Promise.all(
     conversations.map(async (conv: any) => {
       const otherId = conv.user_a === profile.id ? conv.user_b : conv.user_a;

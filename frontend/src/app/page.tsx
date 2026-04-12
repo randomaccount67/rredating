@@ -1,5 +1,64 @@
+'use client';
 import Link from 'next/link';
 import { Crosshair, Zap, Users, Lock } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useApi } from '@/lib/api';
+import { createClient } from '@/lib/supabase';
+
+function HeroCTA() {
+  const api = useApi();
+  const [hasProfile, setHasProfile] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data }) => {
+      if (!data.session) { setHasProfile(false); return; }
+      api('/api/profile').then(async res => {
+        if (res.ok) {
+          const d = await res.json();
+          setHasProfile(!!d.profile);
+        } else {
+          setHasProfile(false);
+        }
+      }).catch(() => setHasProfile(false));
+    });
+  }, []);
+
+  if (hasProfile === null) {
+    // Loading state — show placeholder button
+    return (
+      <div className="inline-flex items-center gap-2 bg-[#FF4655]/50 text-white font-bold text-lg uppercase tracking-wider px-8 py-3"
+        style={{ fontFamily: 'Barlow Condensed, sans-serif', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>
+        <Crosshair size={18} />
+        SETUP YOUR PROFILE
+      </div>
+    );
+  }
+
+  if (hasProfile) {
+    return (
+      <Link
+        href="/profile"
+        className="inline-flex items-center gap-2 bg-[#FF4655] text-white font-bold text-lg uppercase tracking-wider px-8 py-3 hover:bg-[#FF5F6D] transition-colors"
+        style={{ fontFamily: 'Barlow Condensed, sans-serif', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}
+      >
+        <Crosshair size={18} />
+        EDIT PROFILE
+      </Link>
+    );
+  }
+
+  return (
+    <Link
+      href="/onboarding"
+      className="inline-flex items-center gap-2 bg-[#FF4655] text-white font-bold text-lg uppercase tracking-wider px-8 py-3 hover:bg-[#FF5F6D] transition-colors"
+      style={{ fontFamily: 'Barlow Condensed, sans-serif', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}
+    >
+      <Crosshair size={18} />
+      SETUP YOUR PROFILE
+    </Link>
+  );
+}
 
 export default function LandingPage() {
   const features = [
@@ -63,14 +122,7 @@ export default function LandingPage() {
         </p>
 
         <div className="flex items-center justify-center gap-4 flex-wrap">
-          <Link
-            href="/onboarding"
-            className="inline-flex items-center gap-2 bg-[#FF4655] text-white font-bold text-lg uppercase tracking-wider px-8 py-3 hover:bg-[#FF5F6D] transition-colors"
-            style={{ fontFamily: 'Barlow Condensed, sans-serif', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}
-          >
-            <Crosshair size={18} />
-            SETUP YOUR PROFILE
-          </Link>
+          <HeroCTA />
           <Link
             href="/match"
             className="inline-flex items-center gap-2 border border-[#252830] text-[#8B90A8] font-bold text-lg uppercase tracking-wider px-8 py-3 hover:border-[#00E5FF]/50 hover:text-[#00E5FF] transition-colors"

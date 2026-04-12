@@ -14,11 +14,29 @@ export function hashEmail(email: string): string {
 
 // ─── Profanity ─────────────────────────────────────────────────
 
-const filter = new (Filter as any)();
+/**
+ * Minimal profanity filter — only blocks extreme hate speech / slurs.
+ * Common swear words are allowed. We start with an empty list and add
+ * only the words we explicitly want to block.
+ */
+const BLOCKED_TERMS = [
+  // Racial slurs — only the most severe terms
+  'nigger', 'nigga', 'chink', 'spic', 'kike', 'gook', 'wetback', 'towelhead', 'raghead', 'beaner',
+  'coon', 'jigaboo', 'porch monkey', 'spook', 'zipperhead',
+  // Homophobic / transphobic slurs
+  'faggot', 'fag', 'dyke', 'tranny', 'shemale',
+  // Religious hate speech
+  'jihad', 'sandnigger',
+  // Ableist slurs
+  'retard', 'retarded',
+];
+
+const filter = new (Filter as any)({ emptyList: true });
+filter.addWords(...BLOCKED_TERMS);
 
 /**
  * Shared profanity filter instance.
- * Replaces 2× independent Filter() creations in the old codebase.
+ * Only blocks extreme slurs — common swear words are allowed through.
  */
 export function cleanProfanity(text: string): string {
   try {

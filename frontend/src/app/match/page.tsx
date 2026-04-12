@@ -4,13 +4,12 @@ import { SlidersHorizontal, RefreshCw, X, Heart, Flag } from 'lucide-react';
 import { Profile, REGIONS, ROLES, getRankTier } from '@/types';
 import ProfileModal from '@/components/profile/ProfileModal';
 import ReportModal from '@/components/shared/ReportModal';
-import Image from 'next/image';
 import { useApi } from '@/lib/api';
 
-const RANKS_TIERS = ['Any', 'Iron', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Ascendant', 'Immortal', 'Radiant'];
+const RANKS_TIERS = ['Any', 'Unranked', 'Iron', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Ascendant', 'Immortal', 'Radiant'];
 
 const RANK_COLORS: Record<string, string> = {
-  iron: '#8B8FA8', bronze: '#CD7F32', silver: '#C0C0C0', gold: '#FFD700',
+  unranked: '#525566', iron: '#8B8FA8', bronze: '#CD7F32', silver: '#C0C0C0', gold: '#FFD700',
   platinum: '#00C8FF', diamond: '#A855F7', ascendant: '#22C55E',
   immortal: '#FF4655', radiant: '#FFE84D',
 };
@@ -20,7 +19,6 @@ interface Filters {
   rank_tier: string;
   role: string;
   gender: string;
-  mic_only: boolean;
 }
 
 export default function MatchPage() {
@@ -33,7 +31,8 @@ export default function MatchPage() {
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [requestStatuses, setRequestStatuses] = useState<Record<string, 'pending' | 'matched' | 'declined'>>({});
-  const [filters, setFilters] = useState<Filters>({ region: '', rank_tier: 'Any', role: '', gender: '', mic_only: false });
+  const [filters, setFilters] = useState<Filters>({ region: '', rank_tier: 'Any', role: '', gender: '' });
+  const [seenProfileIds] = useState(() => new Set<string>());
   const [actionLoading, setActionLoading] = useState(false);
   const [reportingProfile, setReportingProfile] = useState<Profile | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -63,7 +62,6 @@ export default function MatchPage() {
         ...(currentFilters.rank_tier && currentFilters.rank_tier !== 'Any' && { rank_tier: currentFilters.rank_tier }),
         ...(currentFilters.role && { role: currentFilters.role }),
         ...(currentFilters.gender && { gender: currentFilters.gender }),
-        ...(currentFilters.mic_only && { mic_only: '1' }),
       });
       const res = await api(`/api/match?${params}`);
       if (!res.ok) {
@@ -73,10 +71,14 @@ export default function MatchPage() {
       }
       const data = await res.json();
       if (pageNum === 0) {
+        seenProfileIds.clear();
+        data.profiles.forEach((p: Profile) => seenProfileIds.add(p.id));
         setProfiles(data.profiles);
         setCurrentIndex(0);
       } else {
-        setProfiles(prev => [...prev, ...data.profiles]);
+        const newProfiles = (data.profiles as Profile[]).filter(p => !seenProfileIds.has(p.id));
+        newProfiles.forEach(p => seenProfileIds.add(p.id));
+        setProfiles(prev => [...prev, ...newProfiles]);
       }
       setHasMore(data.hasMore);
       setRequestStatuses(prev => ({ ...prev, ...data.requestStatuses }));
@@ -248,17 +250,6 @@ export default function MatchPage() {
               <option value="Other">OTHER</option>
             </select>
           </div>
-          <div className="flex flex-col justify-end">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <div
-                onClick={() => setFilters(prev => ({ ...prev, mic_only: !prev.mic_only }))}
-                className={`w-8 h-4 border transition-all relative cursor-pointer ${filters.mic_only ? 'border-[#FF4655] bg-[#FF4655]/20' : 'border-[#252830]'}`}
-              >
-                <div className={`absolute top-0.5 w-3 h-3 transition-all ${filters.mic_only ? 'bg-[#FF4655] left-4' : 'bg-[#525566] left-0.5'}`} />
-              </div>
-              <span className="label">MIC ONLY</span>
-            </label>
-          </div>
         </div>
       )}
 
@@ -310,14 +301,13 @@ export default function MatchPage() {
           style={{ clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%)' }}>
 
           {/* Avatar */}
-          <div className="relative w-full aspect-square bg-[#11141B] overflow-hidden"
-            style={{ maxHeight: '340px' }}>
+          <div className="relative w-full bg-[#11141B] overflow-hidden"
+            style={{ maxHeight: '340px', height: '340px' }}>
             {currentProfile.avatar_url ? (
-              <Image
+              <img
                 src={currentProfile.avatar_url}
                 alt={currentProfile.riot_id ?? ''}
-                fill
-                className="object-cover"
+                className="w-full h-full object-cover"
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center font-extrabold text-8xl text-[#2A2D35]"

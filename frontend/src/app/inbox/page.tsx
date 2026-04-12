@@ -2,7 +2,6 @@
 import { useApi } from '@/lib/api';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
 import { MessageSquare, UserCheck, Clock } from 'lucide-react';
 import { createClient } from '@/lib/supabase';
 import ProfileModal from '@/components/profile/ProfileModal';
@@ -52,11 +51,13 @@ export default function InboxPage() {
     fetchInbox(true);
   }, [fetchInbox]);
 
+  // Realtime: new match requests coming in
   useEffect(() => {
     if (!myProfileId) return;
     const supabase = createClient();
-    const channel = supabase
-      .channel('inbox-match-requests')
+
+    const reqChannel = supabase
+      .channel(`inbox-requests-${myProfileId}`)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
@@ -65,9 +66,33 @@ export default function InboxPage() {
       }, () => {
         fetchInbox();
       })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'match_requests',
+        filter: `to_user=eq.${myProfileId}`,
+      }, () => {
+        fetchInbox();
+      })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    // Realtime: new messages arrive — refresh inbox to update last_message + unread count
+    const msgChannel = supabase
+      .channel(`inbox-messages-${myProfileId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${myProfileId}`,
+      }, () => {
+        fetchInbox();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(reqChannel);
+      supabase.removeChannel(msgChannel);
+    };
   }, [myProfileId, fetchInbox]);
 
   const requests = items.filter(i => i.type === 'match_request');
@@ -83,6 +108,8 @@ export default function InboxPage() {
         setItems(prev => prev.map(i =>
           i.id === requestId ? { ...i, status: 'matched' } : i
         ));
+        // Refresh to get conversation link
+        fetchInbox();
       }
     } catch (e) {
       console.error(e);
@@ -157,21 +184,30 @@ export default function InboxPage() {
           ) : (
             requests.map(req => (
               <div key={req.id} className="bg-[#171A22] border border-[#252830] p-4 flex items-center gap-4">
-                <div className="w-12 h-12 bg-[#11141B] border border-[#252830] overflow-hidden flex-shrink-0"
-                  style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}>
+                {/* Clickable avatar — opens profile */}
+                <button
+                  className="w-12 h-12 bg-[#11141B] border border-[#252830] overflow-hidden flex-shrink-0 hover:border-[#FF4655]/40 transition-colors"
+                  style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}
+                  onClick={() => setViewingProfile(buildProfile(req.user))}
+                  title="View profile"
+                >
                   {req.user.avatar_url ? (
-                    <Image src={req.user.avatar_url} alt="" width={48} height={48} className="w-full h-full object-cover" />
+                    <img src={req.user.avatar_url} alt="" className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center font-mono text-[#525566]">
                       {req.user.riot_id?.[0]?.toUpperCase() ?? '?'}
                     </div>
                   )}
-                </div>
+                </button>
 
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-[#E8EAF0] truncate">
+                  {/* Clickable name — opens profile */}
+                  <button
+                    className="text-sm text-[#E8EAF0] hover:text-[#FF4655] transition-colors text-left truncate block"
+                    onClick={() => setViewingProfile(buildProfile(req.user))}
+                  >
                     {req.user.riot_id}#{req.user.riot_tag}
-                  </p>
+                  </button>
                   <div className="flex items-center gap-2 mt-0.5">
                     {req.user.current_rank && (
                       <span className="font-mono text-[10px] text-[#525566]">{req.user.current_rank}</span>
@@ -232,7 +268,7 @@ export default function InboxPage() {
                   title="View profile"
                 >
                   {chat.user.avatar_url ? (
-                    <Image src={chat.user.avatar_url} alt="" width={48} height={48} className="w-full h-full object-cover" />
+                    <img src={chat.user.avatar_url} alt="" className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center font-mono text-[#525566]">
                       {chat.user.riot_id?.[0]?.toUpperCase() ?? '?'}
@@ -249,13 +285,15 @@ export default function InboxPage() {
                     {chat.user.riot_id}#{chat.user.riot_tag}
                   </button>
                   {chat.last_message && (
-                    <p className="text-[#525566] text-xs truncate mt-0.5">{chat.last_message}</p>
+                    <p className={`text-xs truncate mt-0.5 ${chat.unread && chat.unread > 0 ? 'text-[#E8EAF0]' : 'text-[#525566]'}`}>
+                      {chat.last_message}
+                    </p>
                   )}
                 </div>
 
                 {chat.unread && chat.unread > 0 ? (
                   <span className="bg-[#FF4655] text-white text-[9px] font-mono w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0">
-                    {chat.unread}
+                    {chat.unread > 9 ? '9+' : chat.unread}
                   </span>
                 ) : null}
               </div>
@@ -264,7 +302,7 @@ export default function InboxPage() {
         </div>
       )}
 
-      {/* Profile modal for chat user */}
+      {/* Profile modal (from requests or chats) */}
       {viewingProfile && (
         <ProfileModal
           profile={viewingProfile}

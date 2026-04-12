@@ -9,6 +9,16 @@ export const blockUser = wrap(async (req: Request, res: Response) => {
   res.json(result);
 });
 
+export const getBlockedUsers = wrap(async (req: Request, res: Response) => {
+  const result = await moderationService.getBlockedUsers(req.profile!);
+  res.json(result);
+});
+
+export const unblockUser = wrap(async (req: Request, res: Response) => {
+  const result = await moderationService.unblockUser(req.profile!, req.body.blocked_profile_id);
+  res.json(result);
+});
+
 // ─── Reports ───────────────────────────────────────────────────
 
 export const createReport = wrap(async (req: Request, res: Response) => {

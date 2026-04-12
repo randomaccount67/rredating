@@ -62,18 +62,21 @@ export async function viewConversation(userA: string, userB: string) {
   const parsedB = uuidSchema.safeParse(userB);
   if (!parsedA.success || !parsedB.success) throw badRequest('Invalid user ID format');
 
-  const { data: conv } = await db
+  // Fetch all conversations between these users (duplicates may exist from old bugs)
+  const { data: convRows } = await db
     .from('conversations')
     .select('id')
-    .or(`and(user_a.eq.${userA},user_b.eq.${userB}),and(user_a.eq.${userB},user_b.eq.${userA})`)
-    .single();
+    .or(`and(user_a.eq.${userA},user_b.eq.${userB}),and(user_a.eq.${userB},user_b.eq.${userA})`);
 
-  if (!conv) return { messages: [], found: false };
+  if (!convRows || convRows.length === 0) return { messages: [], found: false };
 
+  const convIds = convRows.map((c: any) => c.id);
+
+  // Fetch messages from all conversations merged and sorted chronologically
   const { data: messages } = await db
     .from('messages')
     .select('id, sender_id, content, created_at')
-    .eq('conversation_id', conv.id)
+    .in('conversation_id', convIds)
     .order('created_at', { ascending: true });
 
   return { messages: messages || [], found: true };

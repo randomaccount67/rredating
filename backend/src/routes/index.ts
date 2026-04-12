@@ -22,14 +22,14 @@ const adminProtect = [...protect, adminGuard] as const;
 // ─── User ──────────────────────────────────────────────────────
 router.get('/api/profile',         ...auth,    user.getProfile);
 router.post('/api/profile',        ...auth,    rateLimit('profile-create', 5, 60_000), user.createProfile);
-router.put('/api/profile',         ...auth,    user.updateProfile);
+router.put('/api/profile',         ...auth,    rateLimit('profile-update', 10, 3_600_000), user.updateProfile);
 router.get('/api/profile/:id',     ...protect, user.getPublicProfile);
 router.post('/api/upload',         ...protect, rateLimit('upload', 10, 60_000), uploadMiddleware.single('file'), user.uploadAvatar);
 router.delete('/api/account',      ...protect, rateLimit('account-delete', 2, 60_000), user.deleteAccount);
 
 // ─── Match ─────────────────────────────────────────────────────
-router.get('/api/match',                ...protect, match.browse);
-router.post('/api/match',               ...protect, rateLimit('match', 30, 60_000), match.sendRequest);
+router.get('/api/match',                ...protect, rateLimit('browse', 60, 60_000), match.browse);
+router.post('/api/match',               ...protect, rateLimit('match', 20, 3_600_000), match.sendRequest);
 router.post('/api/match/respond',       ...protect, match.respond);
 router.post('/api/match/pass',          ...protect, match.pass);
 
@@ -43,7 +43,9 @@ router.post('/api/presence',            ...protect, social.heartbeat);
 router.delete('/api/presence',          ...protect, social.leave);
 
 // ─── Moderation ────────────────────────────────────────────────
+router.get('/api/block',           ...protect, moderation.getBlockedUsers);
 router.post('/api/block',          ...protect, rateLimit('block', 10, 60_000), moderation.blockUser);
+router.delete('/api/block',        ...protect, moderation.unblockUser);
 router.post('/api/reports',        ...protect, rateLimit('reports', 5, 60_000), moderation.createReport);
 
 // ─── Admin ─────────────────────────────────────────────────────

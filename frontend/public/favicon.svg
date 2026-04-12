@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Red box background -->
+  <rect width="64" height="64" fill="#FF4655" rx="4"/>
+  <!-- RR text -->
+  <text
+    x="32"
+    y="46"
+    font-family="Arial Black, sans-serif"
+    font-weight="900"
+    font-size="34"
+    fill="white"
+    text-anchor="middle"
+    letter-spacing="-2"
+  >RR</text>
+</svg>

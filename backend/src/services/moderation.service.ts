@@ -51,6 +51,30 @@ export async function blockUser(profile: Profile, blockedId: string) {
   return { success: true };
 }
 
+export async function getBlockedUsers(profile: Profile) {
+  const { data } = await db
+    .from('blocked_users')
+    .select('blocked_id, created_at, profiles!blocked_users_blocked_id_fkey(id, riot_id, riot_tag, avatar_url)')
+    .eq('blocker_id', profile.id)
+    .order('created_at', { ascending: false });
+
+  return { blocked: data || [] };
+}
+
+export async function unblockUser(profile: Profile, blockedId: string) {
+  if (!blockedId) throw badRequest('blocked_profile_id is required');
+  const parsed = uuidSchema.safeParse(blockedId);
+  if (!parsed.success) throw badRequest('Invalid profile ID format');
+
+  await db
+    .from('blocked_users')
+    .delete()
+    .eq('blocker_id', profile.id)
+    .eq('blocked_id', blockedId);
+
+  return { success: true };
+}
+
 // ─── Reports ───────────────────────────────────────────────────
 
 export async function createReport(profile: Profile, reportedId: string, reason: string, details?: string) {

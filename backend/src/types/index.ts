@@ -1,6 +1,7 @@
 export type Region = 'NA' | 'EU' | 'APAC' | 'LATAM' | 'BR';
 export type Role = 'Duelist' | 'Controller' | 'Initiator' | 'Sentinel' | 'Flex';
 export type Rank =
+  | 'Unranked'
   | 'Iron 1' | 'Iron 2' | 'Iron 3'
   | 'Bronze 1' | 'Bronze 2' | 'Bronze 3'
   | 'Silver 1' | 'Silver 2' | 'Silver 3'
@@ -86,6 +87,7 @@ export interface Notification {
 }
 
 export const RANKS: Rank[] = [
+  'Unranked',
   'Iron 1', 'Iron 2', 'Iron 3',
   'Bronze 1', 'Bronze 2', 'Bronze 3',
   'Silver 1', 'Silver 2', 'Silver 3',
@@ -108,6 +110,7 @@ export const AGENTS = [
 ];
 
 export function getRankTier(rank: string): string {
+  if (rank === 'Unranked') return 'unranked';
   if (rank.startsWith('Iron')) return 'iron';
   if (rank.startsWith('Bronze')) return 'bronze';
   if (rank.startsWith('Silver')) return 'silver';
@@ -117,5 +120,5 @@ export function getRankTier(rank: string): string {
   if (rank.startsWith('Ascendant')) return 'ascendant';
   if (rank.startsWith('Immortal')) return 'immortal';
   if (rank === 'Radiant') return 'radiant';
-  return 'iron';
+  return 'unranked';
 }

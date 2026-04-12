@@ -2,7 +2,6 @@
 import { useApi } from '@/lib/api';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import Image from 'next/image';
 import Link from 'next/link';
 import { Send, ArrowLeft, AlertTriangle, Flag, UserX } from 'lucide-react';
 import ReportModal from '@/components/shared/ReportModal';
@@ -206,7 +205,7 @@ export default function MessageThreadPage() {
           <div className="w-10 h-10 bg-[#13151A] border border-[#2A2D35] overflow-hidden flex-shrink-0"
             style={{ clipPath: 'polygon(0 0, calc(100% - 5px) 0, 100% 5px, 100% 100%, 0 100%)' }}>
             {data.other_user.avatar_url ? (
-              <Image src={data.other_user.avatar_url} alt="" width={40} height={40} className="w-full h-full object-cover" />
+              <img src={data.other_user.avatar_url} alt="" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center font-mono text-[#525566] text-sm">
                 {data.other_user.riot_id?.[0]?.toUpperCase() ?? '?'}

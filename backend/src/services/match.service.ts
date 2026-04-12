@@ -28,7 +28,11 @@ function filterBrowseCandidates(rows: Profile[], query: Record<string, string>):
     if (query.rank_tier && query.rank_tier !== 'Any') {
       const prefix = query.rank_tier;
       const rank = p.current_rank;
-      if (!rank || !rank.toLowerCase().startsWith(prefix.toLowerCase())) return false;
+      if (prefix === 'Unranked') {
+        if (rank !== 'Unranked' && rank !== null) return false;
+      } else {
+        if (!rank || !rank.toLowerCase().startsWith(prefix.toLowerCase())) return false;
+      }
     }
     if (query.gender) {
       if (query.gender === 'Male' || query.gender === 'Female') {
@@ -46,21 +50,24 @@ function filterBrowseCandidates(rows: Profile[], query: Record<string, string>):
  * never rely on PostgREST `not.in` for UUID lists (often breaks or returns empty).
  */
 async function browseFromProfilesTable(profile: Profile) {
-  const [passesRes, reqRes, blockOutRes, blockInRes] = await Promise.all([
+  const [passesRes, reqOutRes, reqInRes, blockOutRes, blockInRes] = await Promise.all([
     db.from('passes').select('to_user').eq('from_user', profile.id),
     db.from('match_requests').select('to_user').eq('from_user', profile.id),
+    // Also exclude users who sent ME requests (pending or matched) — they've already interacted
+    db.from('match_requests').select('from_user').eq('to_user', profile.id),
     db.from('blocked_users').select('blocked_id').eq('blocker_id', profile.id),
     db.from('blocked_users').select('blocker_id').eq('blocked_id', profile.id),
   ]);
 
-  const prefetchErr = passesRes.error || reqRes.error || blockOutRes.error || blockInRes.error;
+  const prefetchErr = passesRes.error || reqOutRes.error || reqInRes.error || blockOutRes.error || blockInRes.error;
   if (prefetchErr) {
     return { data: null as Profile[] | null, error: prefetchErr };
   }
 
   const exclude = new Set<string>();
   passesRes.data?.forEach(r => exclude.add(r.to_user));
-  reqRes.data?.forEach(r => exclude.add(r.to_user));
+  reqOutRes.data?.forEach(r => exclude.add(r.to_user));
+  reqInRes.data?.forEach(r => exclude.add(r.from_user));
   blockOutRes.data?.forEach(r => exclude.add(r.blocked_id));
   blockInRes.data?.forEach(r => exclude.add(r.blocker_id));
 
@@ -169,11 +176,24 @@ export async function sendRequest(profile: Profile, toProfileId: string) {
     // Mutual match!
     await db.from('match_requests').update({ status: 'matched' }).eq('id', reverse.id);
 
-    const { data: conv } = await db
+    // Check for existing conversation before creating a new one (prevents message loss)
+    const { data: existingConv } = await db
       .from('conversations')
-      .insert({ user_a: profile.id, user_b: toProfileId })
       .select('id')
-      .single();
+      .or(`and(user_a.eq.${profile.id},user_b.eq.${toProfileId}),and(user_a.eq.${toProfileId},user_b.eq.${profile.id})`)
+      .maybeSingle();
+
+    let convId: string | undefined;
+    if (existingConv) {
+      convId = existingConv.id;
+    } else {
+      const { data: newConv } = await db
+        .from('conversations')
+        .insert({ user_a: profile.id, user_b: toProfileId })
+        .select('id')
+        .single();
+      convId = newConv?.id;
+    }
 
     // Notify both users
     await db.from('notifications').insert([
@@ -181,7 +201,7 @@ export async function sendRequest(profile: Profile, toProfileId: string) {
       { user_id: toProfileId, type: 'matched', related_user: profile.id },
     ]);
 
-    return { status: 'matched', conversation_id: conv?.id };
+    return { status: 'matched', conversation_id: convId };
   }
 
   // Insert new pending request
@@ -225,18 +245,31 @@ export async function respondToRequest(profile: Profile, requestId: string, acti
   // Accept → match
   await db.from('match_requests').update({ status: 'matched' }).eq('id', requestId);
 
-  const { data: conv } = await db
+  // Check for existing conversation before creating a new one (prevents message loss)
+  const { data: existingConv } = await db
     .from('conversations')
-    .insert({ user_a: request.from_user, user_b: request.to_user })
     .select('id')
-    .single();
+    .or(`and(user_a.eq.${request.from_user},user_b.eq.${request.to_user}),and(user_a.eq.${request.to_user},user_b.eq.${request.from_user})`)
+    .maybeSingle();
+
+  let convId: string | undefined;
+  if (existingConv) {
+    convId = existingConv.id;
+  } else {
+    const { data: newConv } = await db
+      .from('conversations')
+      .insert({ user_a: request.from_user, user_b: request.to_user })
+      .select('id')
+      .single();
+    convId = newConv?.id;
+  }
 
   await db.from('notifications').insert([
     { user_id: request.from_user, type: 'matched', related_user: request.to_user },
     { user_id: request.to_user, type: 'matched', related_user: request.from_user },
   ]);
 
-  return { status: 'matched', conversation_id: conv?.id };
+  return { status: 'matched', conversation_id: convId };
 }
 
 export async function pass(profile: Profile, toProfileId: string) {

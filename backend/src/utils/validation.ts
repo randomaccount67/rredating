@@ -12,7 +12,7 @@ export const uuidSchema = z.string().regex(
 // ─── Profile Schemas ──────────────────────────────────────────
 
 const riotIdField = z.string().max(24, 'Riot ID too long').nullable().optional();
-const riotTagField = z.string().max(8, 'Riot tag too long').nullable().optional();
+const riotTagField = z.string().max(20, 'Riot tag too long').nullable().optional();
 const aboutField = z.string().max(500, 'About too long').nullable().optional();
 const favoriteArtistField = z.string().max(80, 'Artist name too long').nullable().optional();
 const genderField = z.string().max(30, 'Gender too long').nullable().optional();
