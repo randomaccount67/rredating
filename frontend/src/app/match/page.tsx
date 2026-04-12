@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { SlidersHorizontal, RefreshCw, X, Heart, Flag, BadgeCheck } from 'lucide-react';
+import { SlidersHorizontal, RefreshCw, X, Heart, Flag } from 'lucide-react';
+import VerifiedBadge from '@/components/shared/VerifiedBadge';
 import { Profile, REGIONS, ROLES, getRankTier } from '@/types';
 import ProfileModal from '@/components/profile/ProfileModal';
 import ReportModal from '@/components/shared/ReportModal';
@@ -336,7 +337,7 @@ export default function MatchPage() {
                     <span className="text-[#525566] font-normal text-lg ml-1">#{currentProfile.riot_tag}</span>
                   </h2>
                   {currentProfile.is_verified && (
-                    <div title="Verified"><BadgeCheck size={20} className="text-blue-400 flex-shrink-0" /></div>
+                    <div title="Verified"><VerifiedBadge size={20} /></div>
                   )}
                 </div>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">

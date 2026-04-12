@@ -97,27 +97,33 @@ export default function MessageThreadPage() {
     if (!params.id) return;
     const conversationId = params.id as string;
     const supabase = createClient();
-    // NOTE: Server-side filter removed — some Supabase setups require REPLICA IDENTITY FULL
-    // for non-PK column filters to work. We filter client-side instead.
+
+    // Using Supabase Broadcast (not postgres_changes) so delivery is not blocked
+    // by RLS. The backend sends a broadcast via the service-role key after every insert.
     const channel = supabase
-      .channel(`messages-${conversationId}`)
+      .channel(`conversation:${conversationId}`)
       .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages' },
+        'broadcast',
+        { event: 'new_message' },
         (payload) => {
-          console.log('[Realtime] messages INSERT payload:', payload);
-          const newMsg = payload.new as Message;
-          if (!newMsg || newMsg.conversation_id !== conversationId) return;
+          console.log('[Realtime] broadcast new_message received:', JSON.stringify(payload));
+          const newMsg = payload.payload?.message as Message | undefined;
+          if (!newMsg?.id) {
+            console.warn('[Realtime] broadcast payload missing message.id:', payload);
+            return;
+          }
           setData(prev => {
             if (!prev) return prev;
+            // Deduplicate — our own send is already in state from handleSend
             if (prev.messages.some(m => m.id === newMsg.id)) return prev;
+            console.log('[Realtime] appending message to state:', newMsg.id);
             return { ...prev, messages: [...prev.messages, newMsg] };
           });
           setTimeout(scrollToBottom, 100);
         }
       )
       .subscribe((status, err) => {
-        console.log('[Realtime] messages channel status:', status, err ?? '');
+        console.log('[Realtime] conversation channel status:', status, err ?? '');
       });
 
     return () => { supabase.removeChannel(channel); };

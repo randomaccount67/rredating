@@ -8,7 +8,7 @@ const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').repl
 const cspHeader = [
   "default-src 'self'",
   // Next.js requires unsafe-inline for its runtime scripts; unsafe-eval for development HMR
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://static.cloudflareinsights.com",
   // Tailwind and next inject inline styles; Google Fonts stylesheet
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   // Google Fonts files

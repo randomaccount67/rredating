@@ -28,5 +28,8 @@ export const config = {
   nodeEnv: process.env.NODE_ENV || 'development',
   /** One or more allowed browser origins (comma-separated). Include both apex and www if you use both. */
   frontendOrigins: parseFrontendOrigins(),
+  /** Upstash Redis — optional. When absent, rate limiting falls back to in-process memory. */
+  upstashRedisUrl: process.env.UPSTASH_REDIS_REST_URL ?? null,
+  upstashRedisToken: process.env.UPSTASH_REDIS_REST_TOKEN ?? null,
 } as const;
 

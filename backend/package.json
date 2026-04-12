@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.101.1",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.37.0",
     "bad-words": "^3.0.4",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",

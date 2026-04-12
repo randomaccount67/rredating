@@ -1,9 +1,42 @@
 import { db } from './db.js';
+import { config } from '../config.js';
 import { cleanProfanity } from '../utils/helpers.js';
 import { badRequest, notFound, forbidden } from '../utils/errors.js';
 import { PROFILE_PUBLIC_COLUMNS } from '../utils/columns.js';
 import { uuidSchema } from '../utils/validation.js';
 import type { Profile } from '../types/index.js';
+
+/**
+ * Broadcast a new message to all frontend realtime subscribers via the Supabase
+ * Broadcast REST API. Uses the service-role key so RLS doesn't block delivery.
+ * Fire-and-forget: errors are logged but never thrown.
+ */
+async function broadcastMessage(conversationId: string, message: Record<string, unknown>): Promise<void> {
+  try {
+    const url = `${config.supabaseUrl}/realtime/v1/api/broadcast`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${config.supabaseServiceRoleKey}`,
+        'apikey': config.supabaseServiceRoleKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messages: [{
+          topic: `realtime:conversation:${conversationId}`,
+          event: 'new_message',
+          payload: { message },
+        }],
+      }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      console.error(`[broadcast] HTTP ${res.status}:`, text);
+    }
+  } catch (err) {
+    console.error('[broadcast] Failed to broadcast message:', err);
+  }
+}
 
 // ─── Messages ──────────────────────────────────────────────────
 
@@ -77,7 +110,9 @@ export async function sendMessage(profile: Profile, conversationId: string, cont
 
   if (error) throw new Error(error.message);
 
-  // Broadcasting is now handled automatically by Supabase Realtime via Postgres Changes.
+  // Broadcast to frontend realtime subscribers. Fire-and-forget so a broadcast
+  // failure never breaks message delivery.
+  broadcastMessage(conversationId, message as unknown as Record<string, unknown>);
 
   // Check if other user is actively viewing (skip notification if so)
   const { data: viewer } = await db

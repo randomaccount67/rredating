@@ -11,8 +11,9 @@ import {
   AlertTriangle,
   MessageSquare,
   X,
-  BadgeCheck,
+  Search,
 } from "lucide-react";
+import VerifiedBadge from "@/components/shared/VerifiedBadge";
 
 interface AdminUser {
   id: string;
@@ -80,6 +81,7 @@ export default function AdminPage() {
     }[];
   } | null>(null);
   const [msgLoading, setMsgLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -189,6 +191,16 @@ export default function AdminPage() {
   };
 
   const unreviewedReports = reports.filter((r) => !r.reviewed);
+
+  const filteredUsers = searchQuery.trim()
+    ? (() => {
+        const q = searchQuery.trim().toLowerCase();
+        return users.filter(u =>
+          (u.riot_id && `${u.riot_id}#${u.riot_tag}`.toLowerCase().includes(q)) ||
+          u.id.toLowerCase().includes(q)
+        );
+      })()
+    : users;
   const userReports = selectedUser
     ? reports.filter((r) => r.reported_id === selectedUser.id)
     : [];
@@ -322,14 +334,34 @@ export default function AdminPage() {
               "polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)",
           }}
         >
-          <div className="px-4 py-3 border-b border-[#2A2D35] flex items-center gap-2">
-            <Shield size={12} className="text-[#525566]" />
-            <span className="font-mono text-[10px] uppercase tracking-wider text-[#8B8FA8]">
-              All Users
-            </span>
+          <div className="px-4 py-3 border-b border-[#2A2D35]">
+            <div className="flex items-center gap-2 mb-2">
+              <Shield size={12} className="text-[#525566]" />
+              <span className="font-mono text-[10px] uppercase tracking-wider text-[#8B8FA8]">
+                All Users
+              </span>
+              <span className="font-mono text-[9px] text-[#525566] ml-auto">
+                {filteredUsers.length}/{users.length}
+              </span>
+            </div>
+            <div className="relative">
+              <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#525566]" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search by Riot ID or profile ID..."
+                className="w-full bg-[#13151A] border border-[#2A2D35] pl-7 pr-3 py-1.5 font-mono text-[10px] text-[#E8EAF0] placeholder-[#525566] focus:border-[#FF4655] outline-none"
+              />
+            </div>
           </div>
-          <div className="divide-y divide-[#2A2D35] max-h-[600px] overflow-y-auto">
-            {users.map((u) => {
+          <div className="divide-y divide-[#2A2D35] max-h-[560px] overflow-y-auto">
+            {filteredUsers.length === 0 && (
+              <div className="px-4 py-6 text-center">
+                <p className="font-mono text-[10px] text-[#525566]">No users match "{searchQuery}"</p>
+              </div>
+            )}
+            {filteredUsers.map((u) => {
               const name = u.riot_id
                 ? `${u.riot_id}#${u.riot_tag}`
                 : "NO PROFILE";
@@ -361,7 +393,7 @@ export default function AdminPage() {
                         </span>
                       )}
                       {u.is_verified && (
-                        <BadgeCheck size={11} className="text-blue-400 flex-shrink-0" />
+                        <VerifiedBadge size={11} />
                       )}
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
@@ -450,7 +482,7 @@ export default function AdminPage() {
                             : "NO PROFILE"}
                         </h2>
                         {selectedUser.is_verified && (
-                          <BadgeCheck size={14} className="text-blue-400" />
+                          <VerifiedBadge size={14} />
                         )}
                         {selectedUser.is_banned && (
                           <span className="font-mono text-[9px] text-[#FF4655] border border-[#FF4655]/30 px-1.5 py-0.5">
@@ -480,7 +512,7 @@ export default function AdminPage() {
                           "polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)",
                       }}
                     >
-                      <BadgeCheck size={13} />
+                      <VerifiedBadge size={13} />
                       {actionLoading === `verify-${selectedUser.id}`
                         ? "..."
                         : selectedUser.is_verified

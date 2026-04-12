@@ -2,7 +2,8 @@
 import { useApi } from '@/lib/api';
 import { useState, useEffect } from 'react';
 import { useParams, notFound } from 'next/navigation';
-import { Target, Music, Calendar, Flag, BadgeCheck } from 'lucide-react';
+import { Target, Music, Calendar, Flag } from 'lucide-react';
+import VerifiedBadge from '@/components/shared/VerifiedBadge';
 import { Profile, getRankTier } from '@/types';
 import ReportModal from '@/components/shared/ReportModal';
 
@@ -84,7 +85,7 @@ export default function PublicProfilePage() {
               <div className="flex items-center gap-2">
                 <h1 className="font-mono text-xl text-[#E8EAF0]">{displayName}</h1>
                 {p.is_verified && (
-                  <div title="Verified"><BadgeCheck size={18} className="text-blue-400 flex-shrink-0" /></div>
+                  <div title="Verified"><VerifiedBadge size={18} /></div>
                 )}
               </div>
               <div className="flex items-center gap-2 mt-2 flex-wrap">
