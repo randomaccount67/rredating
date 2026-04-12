@@ -19,6 +19,7 @@ export interface PartialProfile {
   region?: string | null;
   favorite_artist?: string | null;
   is_online?: boolean;
+  is_verified?: boolean;
   created_at?: string;
   age?: number | null;
 }
@@ -53,5 +54,6 @@ export function buildProfile(u: PartialProfile): Profile {
     last_seen: null,
     is_admin: false,
     is_banned: false,
+    is_verified: u.is_verified ?? false,
   };
 }

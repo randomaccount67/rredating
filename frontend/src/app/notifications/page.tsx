@@ -1,8 +1,9 @@
 'use client';
 import { useApi } from '@/lib/api';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Bell, UserCheck, MessageSquare, Heart } from 'lucide-react';
+import { createClient } from '@/lib/supabase';
 
 interface Notification {
   id: string;
@@ -19,7 +20,13 @@ interface Notification {
 const NOTIF_ICONS: Record<string, React.ReactNode> = {
   match_request: <UserCheck size={14} className="text-[#FF4655]" />,
   matched: <Heart size={14} className="text-green-400" />,
-  new_message: <MessageSquare size={14} className="text-blue-400" />,
+  new_message: <MessageSquare size={14} className="text-[#00E5FF]" />,
+};
+
+const NOTIF_BORDER: Record<string, string> = {
+  match_request: 'border-l-[#FF4655]',
+  matched: 'border-l-green-500',
+  new_message: 'border-l-[#00E5FF]',
 };
 
 const NOTIF_TEXT: Record<string, (name: string) => string> = {
@@ -32,26 +39,50 @@ export default function NotificationsPage() {
   const api = useApi();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [myProfileId, setMyProfileId] = useState<string | null>(null);
+
+  const fetchNotifs = useCallback(async (markRead = false) => {
+    try {
+      const res = await api('/api/notifications');
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data.notifications);
+        if (markRead) {
+          api('/api/notifications/read', { method: 'POST' }).catch(() => {});
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, [api]);
 
   useEffect(() => {
-    async function fetchNotifs() {
-      try {
-        const res = await api('/api/notifications');
-        if (res.ok) {
-          const data = await res.json();
-          setNotifications(data.notifications);
-        }
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchNotifs();
+    fetchNotifs(true);
+    // Get profile ID for realtime subscription
+    api('/api/profile').then(r => r.json()).then(d => {
+      if (d.profile?.id) setMyProfileId(d.profile.id);
+    }).catch(() => {});
+  }, [fetchNotifs, api]);
 
-    // Mark all read
-    api('/api/notifications/read', { method: 'POST' }).catch(() => {});
-  }, []);
+  // Realtime subscription — push new notifications in without page refresh
+  useEffect(() => {
+    if (!myProfileId) return;
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`notifs-page-${myProfileId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${myProfileId}`,
+      }, () => {
+        fetchNotifs(true);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [myProfileId, fetchNotifs]);
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
@@ -93,10 +124,10 @@ export default function NotificationsPage() {
               <Link
                 key={notif.id}
                 href={href}
-                className={`flex items-start gap-4 p-4 border transition-all ${
+                className={`flex items-start gap-4 p-4 border border-l-2 transition-all ${NOTIF_BORDER[notif.type] ?? 'border-l-[#2A2D35]'} ${
                   !notif.read
-                    ? 'bg-[#1A1D24] border-[#FF4655]/20 hover:border-[#FF4655]/40'
-                    : 'bg-[#13151A] border-[#2A2D35] hover:border-[#2A2D35]/80 opacity-60'
+                    ? 'bg-[#1A1D24] border-[#2A2D35] hover:bg-[#1E2130]'
+                    : 'bg-[#13151A] border-[#2A2D35] hover:border-[#2A2D35]/80 opacity-50'
                 }`}
               >
                 <div className="mt-0.5 flex-shrink-0">{NOTIF_ICONS[notif.type]}</div>

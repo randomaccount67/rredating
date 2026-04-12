@@ -1,5 +1,4 @@
 import crypto from 'crypto';
-import Filter from 'bad-words';
 import { config } from '../config.js';
 
 // ─── Crypto ────────────────────────────────────────────────────
@@ -15,42 +14,28 @@ export function hashEmail(email: string): string {
 // ─── Profanity ─────────────────────────────────────────────────
 
 /**
- * Minimal profanity filter — only blocks extreme hate speech / slurs.
- * Common swear words are allowed. We start with an empty list and add
- * only the words we explicitly want to block.
+ * Minimal profanity filter using regex — only blocks extreme slurs and hate speech.
+ * Common swear words (fuck, shit, ass, damn, bitch, crap, hell, etc.) are allowed through.
  */
-const BLOCKED_TERMS = [
-  // Racial slurs — only the most severe terms
-  'nigger', 'nigga', 'chink', 'spic', 'kike', 'gook', 'wetback', 'towelhead', 'raghead', 'beaner',
-  'coon', 'jigaboo', 'porch monkey', 'spook', 'zipperhead',
-  // Homophobic / transphobic slurs
-  'faggot', 'fag', 'dyke', 'tranny', 'shemale',
-  // Religious hate speech
-  'jihad', 'sandnigger',
-  // Ableist slurs
-  'retard', 'retarded',
-];
+const SLUR_PATTERN = new RegExp(
+  '\\b(' + [
+    // Racial slurs
+    'nigger', 'niggers', 'nigga', 'nigg[ae]r', 'chink', 'chinks', 'spic', 'spics',
+    'kike', 'kikes', 'gook', 'gooks', 'wetback', 'wetbacks', 'towelhead', 'towelheads',
+    'raghead', 'ragheads', 'beaner', 'beaners', 'coon', 'coons', 'jigaboo', 'jigaboos',
+    'zipperhead', 'zipperheads', 'porch\\s*monkey',
+    // Homophobic / transphobic slurs
+    'faggot', 'faggots', 'tranny', 'trannies', 'shemale', 'shemales',
+    // Compound slurs
+    'sandnigger', 'sandniggers',
+  ].join('|') + ')\\b',
+  'gi',
+);
 
-const filter = new (Filter as any)({ emptyList: true });
-filter.addWords(...BLOCKED_TERMS);
-
-/**
- * Shared profanity filter instance.
- * Only blocks extreme slurs — common swear words are allowed through.
- */
 export function cleanProfanity(text: string): string {
-  try {
-    return filter.clean(text);
-  } catch {
-    // bad-words can throw on non-ASCII characters
-    return text;
-  }
+  return text.replace(SLUR_PATTERN, '***');
 }
 
 export function hasProfanity(text: string): boolean {
-  try {
-    return filter.isProfane(text);
-  } catch {
-    return false;
-  }
+  return SLUR_PATTERN.test(text);
 }

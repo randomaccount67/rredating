@@ -2,7 +2,7 @@
 import { useApi } from '@/lib/api';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { MessageSquare, UserCheck, Clock } from 'lucide-react';
+import { MessageSquare, UserCheck, Clock, BadgeCheck } from 'lucide-react';
 import { createClient } from '@/lib/supabase';
 import ProfileModal from '@/components/profile/ProfileModal';
 import { Profile } from '@/types';
@@ -192,7 +192,7 @@ export default function InboxPage() {
                   title="View profile"
                 >
                   {req.user.avatar_url ? (
-                    <img src={req.user.avatar_url} alt="" className="w-full h-full object-cover" />
+                    <img src={req.user.avatar_url} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center font-mono text-[#525566]">
                       {req.user.riot_id?.[0]?.toUpperCase() ?? '?'}
@@ -202,12 +202,17 @@ export default function InboxPage() {
 
                 <div className="flex-1 min-w-0">
                   {/* Clickable name — opens profile */}
-                  <button
-                    className="text-sm text-[#E8EAF0] hover:text-[#FF4655] transition-colors text-left truncate block"
-                    onClick={() => setViewingProfile(buildProfile(req.user))}
-                  >
-                    {req.user.riot_id}#{req.user.riot_tag}
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      className="text-sm text-[#E8EAF0] hover:text-[#FF4655] transition-colors text-left truncate"
+                      onClick={() => setViewingProfile(buildProfile(req.user))}
+                    >
+                      {req.user.riot_id}#{req.user.riot_tag}
+                    </button>
+                    {req.user.is_verified && (
+                      <BadgeCheck size={13} className="text-blue-400 flex-shrink-0" title="Verified" />
+                    )}
+                  </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     {req.user.current_rank && (
                       <span className="font-mono text-[10px] text-[#525566]">{req.user.current_rank}</span>
@@ -257,7 +262,11 @@ export default function InboxPage() {
             chats.map(chat => (
               <div
                 key={chat.id}
-                className="flex items-center gap-4 bg-[#171A22] border border-[#252830] hover:border-[#00E5FF]/20 p-4 transition-all cursor-pointer"
+                className={`flex items-center gap-4 border p-4 transition-all cursor-pointer ${
+                  chat.unread && chat.unread > 0
+                    ? 'bg-[#1A1F2E] border-[#00E5FF]/40 hover:border-[#00E5FF]/60'
+                    : 'bg-[#171A22] border-[#252830] hover:border-[#00E5FF]/20'
+                }`}
                 onClick={() => router.push(`/inbox/${chat.conversation_id}`)}
               >
                 {/* Avatar — click opens profile */}
@@ -268,7 +277,7 @@ export default function InboxPage() {
                   title="View profile"
                 >
                   {chat.user.avatar_url ? (
-                    <img src={chat.user.avatar_url} alt="" className="w-full h-full object-cover" />
+                    <img src={chat.user.avatar_url} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center font-mono text-[#525566]">
                       {chat.user.riot_id?.[0]?.toUpperCase() ?? '?'}
@@ -278,21 +287,26 @@ export default function InboxPage() {
 
                 <div className="flex-1 min-w-0">
                   {/* Name — click opens profile */}
-                  <button
-                    className="text-sm text-[#E8EAF0] hover:text-[#00E5FF] transition-colors text-left"
-                    onClick={e => { e.stopPropagation(); setViewingProfile(buildProfile(chat.user)); }}
-                  >
-                    {chat.user.riot_id}#{chat.user.riot_tag}
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      className="text-sm text-[#E8EAF0] hover:text-[#00E5FF] transition-colors text-left"
+                      onClick={e => { e.stopPropagation(); setViewingProfile(buildProfile(chat.user)); }}
+                    >
+                      {chat.user.riot_id}#{chat.user.riot_tag}
+                    </button>
+                    {chat.user.is_verified && (
+                      <BadgeCheck size={13} className="text-blue-400 flex-shrink-0" title="Verified" />
+                    )}
+                  </div>
                   {chat.last_message && (
-                    <p className={`text-xs truncate mt-0.5 ${chat.unread && chat.unread > 0 ? 'text-[#E8EAF0]' : 'text-[#525566]'}`}>
+                    <p className={`text-xs truncate mt-0.5 ${chat.unread && chat.unread > 0 ? 'text-[#E8EAF0] font-semibold' : 'text-[#525566]'}`}>
                       {chat.last_message}
                     </p>
                   )}
                 </div>
 
                 {chat.unread && chat.unread > 0 ? (
-                  <span className="bg-[#FF4655] text-white text-[9px] font-mono w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0">
+                  <span className="bg-[#00E5FF] text-[#0B0D11] text-[9px] font-bold font-mono w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0">
                     {chat.unread > 9 ? '9+' : chat.unread}
                   </span>
                 ) : null}

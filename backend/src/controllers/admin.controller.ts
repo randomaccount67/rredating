@@ -29,3 +29,8 @@ export const viewConversation = wrap(async (req: Request, res: Response) => {
   );
   res.json(result);
 });
+
+export const toggleVerified = wrap(async (req: Request, res: Response) => {
+  const result = await adminService.toggleVerified(req.profile!, req.body.profile_id, req.body.verify);
+  res.json(result);
+});

@@ -1,6 +1,5 @@
 'use client';
-import Image from 'next/image';
-import { X, Target, Music, Calendar } from 'lucide-react';
+import { X, Target, Music, Calendar, BadgeCheck } from 'lucide-react';
 import { Profile, getRankTier } from '@/types';
 import OnlineIndicator from '@/components/shared/OnlineIndicator';
 
@@ -50,7 +49,7 @@ export default function ProfileModal({ profile, onClose, onSendRequest, onPass, 
           {/* Avatar column */}
           <div className="relative w-28 flex-shrink-0 bg-[#131009]" style={{ minHeight: '7rem' }}>
             {profile.avatar_url ? (
-              <Image src={profile.avatar_url} alt={displayName} fill className="object-cover" />
+              <img src={profile.avatar_url} alt={displayName} className="absolute inset-0 w-full h-full object-cover" loading="lazy" decoding="async" />
             ) : (
               <div className="absolute inset-0 flex items-center justify-center">
                 <span className="font-black text-5xl text-[#2F2B24]" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
@@ -68,12 +67,17 @@ export default function ProfileModal({ profile, onClose, onSendRequest, onPass, 
                 <div className="flex items-center gap-2 mb-0.5">
                   <OnlineIndicator isOnline={profile.is_online} showLabel />
                 </div>
-                <h2
-                  className="font-black text-xl uppercase text-[#F2EDE4] truncate leading-tight"
-                  style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
-                >
-                  {displayName}
-                </h2>
+                <div className="flex items-center gap-2">
+                  <h2
+                    className="font-black text-xl uppercase text-[#F2EDE4] truncate leading-tight"
+                    style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
+                  >
+                    {displayName}
+                  </h2>
+                  {profile.is_verified && (
+                    <BadgeCheck size={16} className="text-blue-400 flex-shrink-0" title="Verified" />
+                  )}
+                </div>
                 <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                   {profile.region && (
                     <span className="font-mono text-[9px] border border-[#2F2B24] px-1.5 py-0.5 text-[#4A4440]">{profile.region}</span>

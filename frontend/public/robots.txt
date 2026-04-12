@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /match
+Disallow: /inbox
+Disallow: /notifications
+Disallow: /admin
+Disallow: /onboarding
+
+Sitemap: https://rredating.com/sitemap.xml

@@ -2,8 +2,7 @@
 import { useApi } from '@/lib/api';
 import { useState, useEffect } from 'react';
 import { useParams, notFound } from 'next/navigation';
-import Image from 'next/image';
-import { Target, Music, Calendar, Flag } from 'lucide-react';
+import { Target, Music, Calendar, Flag, BadgeCheck } from 'lucide-react';
 import { Profile, getRankTier } from '@/types';
 import ReportModal from '@/components/shared/ReportModal';
 
@@ -56,10 +55,17 @@ export default function PublicProfilePage() {
 
   const displayName = p.riot_id ? `${p.riot_id}#${p.riot_tag}` : 'UNKNOWN#0000';
 
+  const RANK_ACCENT: Record<string, string> = {
+    unranked: '#525566', iron: '#7A7870', bronze: '#C47A30', silver: '#9BAFC4', gold: '#E8C200',
+    platinum: '#00B8E0', diamond: '#9B71F4', ascendant: '#40D060',
+    immortal: '#FF5070', radiant: '#FFD700',
+  };
+  const rankColor = p.current_rank ? (RANK_ACCENT[getRankTier(p.current_rank)] ?? '#FF4655') : '#FF4655';
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       <div className="bg-[#1A1D24] border border-[#2A2D35] overflow-hidden"
-        style={{ clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%)' }}>
+        style={{ clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%)', borderTop: `3px solid ${rankColor}` }}>
 
         {/* Header */}
         <div className="p-8 border-b border-[#2A2D35]">
@@ -67,7 +73,7 @@ export default function PublicProfilePage() {
             <div className="w-24 h-24 bg-[#13151A] border border-[#2A2D35] overflow-hidden flex-shrink-0"
               style={{ clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}>
               {p.avatar_url ? (
-                <Image src={p.avatar_url} alt={displayName} width={96} height={96} className="w-full h-full object-cover" />
+                <img src={p.avatar_url} alt={displayName} className="w-full h-full object-cover" loading="lazy" decoding="async" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center font-mono text-4xl text-[#525566]">
                   {p.riot_id?.[0]?.toUpperCase() ?? '?'}
@@ -75,7 +81,12 @@ export default function PublicProfilePage() {
               )}
             </div>
             <div>
-              <h1 className="font-mono text-xl text-[#E8EAF0]">{displayName}</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="font-mono text-xl text-[#E8EAF0]">{displayName}</h1>
+                {p.is_verified && (
+                  <BadgeCheck size={18} className="text-blue-400 flex-shrink-0" title="Verified" />
+                )}
+              </div>
               <div className="flex items-center gap-2 mt-2 flex-wrap">
                 {p.region && <span className="text-[#525566] font-mono text-[10px] border border-[#2A2D35] px-2 py-0.5">{p.region}</span>}
                 {p.gender && <span className="text-[#525566] font-mono text-[10px] border border-[#2A2D35] px-2 py-0.5">{p.gender}</span>}

@@ -53,6 +53,7 @@ router.get('/api/admin/users',        ...adminProtect, admin.listUsers);
 router.get('/api/admin/reports',      ...adminProtect, admin.listReports);
 router.patch('/api/admin/reports',    ...adminProtect, admin.updateReport);
 router.post('/api/admin/ban',         ...adminProtect, admin.toggleBan);
+router.post('/api/admin/verify',      ...adminProtect, admin.toggleVerified);
 router.get('/api/admin/conversation', ...adminProtect, admin.viewConversation);
 
 export default router;

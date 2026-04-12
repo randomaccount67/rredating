@@ -31,6 +31,17 @@ export async function markReportReviewed(reportId: string) {
   return { success: true };
 }
 
+export async function toggleVerified(adminProfile: Profile, targetId: string, verify: boolean) {
+  if (!targetId) throw badRequest('profile_id is required');
+  const parsed = uuidSchema.safeParse(targetId);
+  if (!parsed.success) throw badRequest('Invalid profile ID format');
+
+  await db.from('profiles').update({ is_verified: verify }).eq('id', targetId);
+  securityLog.adminAction(adminProfile.id, verify ? 'verify_user' : 'unverify_user', targetId);
+
+  return { success: true };
+}
+
 export async function toggleBan(adminProfile: Profile, targetId: string, ban: boolean) {
   if (!targetId) throw badRequest('profile_id is required');
   // H5 fix: Validate UUID format

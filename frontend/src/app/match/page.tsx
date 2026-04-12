@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { SlidersHorizontal, RefreshCw, X, Heart, Flag } from 'lucide-react';
+import { SlidersHorizontal, RefreshCw, X, Heart, Flag, BadgeCheck } from 'lucide-react';
 import { Profile, REGIONS, ROLES, getRankTier } from '@/types';
 import ProfileModal from '@/components/profile/ProfileModal';
 import ReportModal from '@/components/shared/ReportModal';
@@ -308,6 +308,8 @@ export default function MatchPage() {
                 src={currentProfile.avatar_url}
                 alt={currentProfile.riot_id ?? ''}
                 className="w-full h-full object-cover"
+                loading="lazy"
+                decoding="async"
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center font-extrabold text-8xl text-[#2A2D35]"
@@ -327,11 +329,16 @@ export default function MatchPage() {
           <div className="p-5">
             <div className="flex items-start justify-between mb-3">
               <div>
-                <h2 className="font-extrabold text-2xl uppercase text-[#E8EAF0]"
-                  style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
-                  {currentProfile.riot_id ?? 'UNKNOWN'}
-                  <span className="text-[#525566] font-normal text-lg ml-1">#{currentProfile.riot_tag}</span>
-                </h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="font-extrabold text-2xl uppercase text-[#E8EAF0]"
+                    style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                    {currentProfile.riot_id ?? 'UNKNOWN'}
+                    <span className="text-[#525566] font-normal text-lg ml-1">#{currentProfile.riot_tag}</span>
+                  </h2>
+                  {currentProfile.is_verified && (
+                    <BadgeCheck size={20} className="text-blue-400 flex-shrink-0" title="Verified" />
+                  )}
+                </div>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                   {currentProfile.current_rank && (
                     <span className="font-mono text-xs px-2 py-0.5 border"

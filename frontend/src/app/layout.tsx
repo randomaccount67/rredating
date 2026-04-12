@@ -11,7 +11,6 @@ export const metadata: Metadata = {
   title: 'RRedating — Find Your Valorant Edate',
   description: 'a (totally not serious) community edating site. find your edate here so you stop dropping your ep 7 immortal buddy in swiftplay',
   metadataBase: new URL(siteUrl),
-  robots: 'noindex',
   icons: {
     icon: '/favicon.svg',
     shortcut: '/favicon.svg',

@@ -52,13 +52,30 @@ export async function blockUser(profile: Profile, blockedId: string) {
 }
 
 export async function getBlockedUsers(profile: Profile) {
-  const { data } = await db
+  const { data: blockRows } = await db
     .from('blocked_users')
-    .select('blocked_id, created_at, profiles!blocked_users_blocked_id_fkey(id, riot_id, riot_tag, avatar_url)')
+    .select('blocked_id, created_at')
     .eq('blocker_id', profile.id)
     .order('created_at', { ascending: false });
 
-  return { blocked: data || [] };
+  if (!blockRows || blockRows.length === 0) return { blocked: [] };
+
+  const blockedIds = blockRows.map(r => r.blocked_id);
+  const { data: profileRows } = await db
+    .from('profiles')
+    .select('id, riot_id, riot_tag, avatar_url')
+    .in('id', blockedIds);
+
+  const profileMap: Record<string, any> = {};
+  profileRows?.forEach(p => { profileMap[p.id] = p; });
+
+  const blocked = blockRows.map(r => ({
+    blocked_id: r.blocked_id,
+    created_at: r.created_at,
+    profiles: profileMap[r.blocked_id] ?? null,
+  }));
+
+  return { blocked };
 }
 
 export async function unblockUser(profile: Profile, blockedId: string) {

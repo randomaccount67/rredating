@@ -11,6 +11,7 @@ import {
   AlertTriangle,
   MessageSquare,
   X,
+  BadgeCheck,
 } from "lucide-react";
 
 interface AdminUser {
@@ -21,6 +22,7 @@ interface AdminUser {
   created_at: string;
   is_banned: boolean;
   is_admin: boolean;
+  is_verified: boolean;
   about: string | null;
   agents: string[] | null;
   peak_rank: string | null;
@@ -122,6 +124,27 @@ export default function AdminPage() {
       );
       if (selectedUser?.id === profileId)
         setSelectedUser((prev) => (prev ? { ...prev, is_banned: ban } : prev));
+    } catch {
+      setError("Action failed.");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleVerify = async (profileId: string, verify: boolean) => {
+    setActionLoading(`verify-${profileId}`);
+    try {
+      const res = await api("/api/admin/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile_id: profileId, verify }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      setUsers((prev) =>
+        prev.map((u) => (u.id === profileId ? { ...u, is_verified: verify } : u)),
+      );
+      if (selectedUser?.id === profileId)
+        setSelectedUser((prev) => (prev ? { ...prev, is_verified: verify } : prev));
     } catch {
       setError("Action failed.");
     } finally {
@@ -337,6 +360,9 @@ export default function AdminPage() {
                           ADMIN
                         </span>
                       )}
+                      {u.is_verified && (
+                        <BadgeCheck size={11} className="text-blue-400 flex-shrink-0" />
+                      )}
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
                       {u.region && (
@@ -423,6 +449,9 @@ export default function AdminPage() {
                             ? `${selectedUser.riot_id}#${selectedUser.riot_tag}`
                             : "NO PROFILE"}
                         </h2>
+                        {selectedUser.is_verified && (
+                          <BadgeCheck size={14} className="text-blue-400" />
+                        )}
                         {selectedUser.is_banned && (
                           <span className="font-mono text-[9px] text-[#FF4655] border border-[#FF4655]/30 px-1.5 py-0.5">
                             BANNED
@@ -434,29 +463,54 @@ export default function AdminPage() {
                       </p>
                     </div>
                   </div>
-                  <button
-                    onClick={() =>
-                      handleBan(selectedUser.id, !selectedUser.is_banned)
-                    }
-                    disabled={actionLoading === selectedUser.id}
-                    className={`flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-2 transition-all disabled:opacity-50 ${
-                      selectedUser.is_banned
-                        ? "border border-green-500/30 text-green-400 hover:bg-green-500/10"
-                        : "border border-[#FF4655]/30 text-[#FF4655] hover:bg-[#FF4655]/10"
-                    }`}
-                    style={{
-                      fontFamily: "Barlow Condensed, sans-serif",
-                      clipPath:
-                        "polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)",
-                    }}
-                  >
-                    <Ban size={13} />
-                    {actionLoading === selectedUser.id
-                      ? "..."
-                      : selectedUser.is_banned
-                        ? "UNBAN USER"
-                        : "BAN USER"}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() =>
+                        handleVerify(selectedUser.id, !selectedUser.is_verified)
+                      }
+                      disabled={actionLoading === `verify-${selectedUser.id}`}
+                      className={`flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-2 transition-all disabled:opacity-50 ${
+                        selectedUser.is_verified
+                          ? "border border-[#525566]/30 text-[#525566] hover:bg-[#525566]/10"
+                          : "border border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
+                      }`}
+                      style={{
+                        fontFamily: "Barlow Condensed, sans-serif",
+                        clipPath:
+                          "polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)",
+                      }}
+                    >
+                      <BadgeCheck size={13} />
+                      {actionLoading === `verify-${selectedUser.id}`
+                        ? "..."
+                        : selectedUser.is_verified
+                          ? "UNVERIFY"
+                          : "VERIFY"}
+                    </button>
+                    <button
+                      onClick={() =>
+                        handleBan(selectedUser.id, !selectedUser.is_banned)
+                      }
+                      disabled={actionLoading === selectedUser.id}
+                      className={`flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-2 transition-all disabled:opacity-50 ${
+                        selectedUser.is_banned
+                          ? "border border-green-500/30 text-green-400 hover:bg-green-500/10"
+                          : "border border-[#FF4655]/30 text-[#FF4655] hover:bg-[#FF4655]/10"
+                      }`}
+                      style={{
+                        fontFamily: "Barlow Condensed, sans-serif",
+                        clipPath:
+                          "polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)",
+                      }}
+                    >
+                      <Ban size={13} />
+                      {actionLoading === selectedUser.id
+                        ? "..."
+                        : selectedUser.is_banned
+                          ? "UNBAN USER"
+                          : "BAN USER"}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="px-5 py-4 grid grid-cols-2 gap-3 text-xs border-b border-[#2A2D35]">

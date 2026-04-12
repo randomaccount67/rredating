@@ -24,6 +24,7 @@ export interface Profile {
   created_at: string;
   is_admin: boolean;
   is_banned: boolean;
+  is_verified: boolean;
   age: number | null;
 }
 
