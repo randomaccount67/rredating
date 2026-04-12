@@ -32,12 +32,23 @@ export async function markReportReviewed(reportId: string) {
 }
 
 export async function toggleVerified(adminProfile: Profile, targetId: string, verify: boolean) {
-  if (!targetId) throw badRequest('profile_id is required');
+  console.log(`[admin.toggleVerified] called: targetId=${targetId}, verify=${verify}, adminId=${adminProfile.id}`);
+  if (!targetId) {
+    console.log('[admin.toggleVerified] ERROR: missing profile_id');
+    throw badRequest('profile_id is required');
+  }
   const parsed = uuidSchema.safeParse(targetId);
-  if (!parsed.success) throw badRequest('Invalid profile ID format');
+  if (!parsed.success) {
+    console.log(`[admin.toggleVerified] ERROR: invalid UUID format for targetId=${targetId}`);
+    throw badRequest('Invalid profile ID format');
+  }
 
   const { error } = await db.from('profiles').update({ is_verified: verify }).eq('id', targetId);
-  if (error) throw new Error(`Failed to update verification status: ${error.message}`);
+  if (error) {
+    console.error('[admin.toggleVerified] DB error:', error);
+    throw new Error(`Failed to update verification status: ${error.message}`);
+  }
+  console.log(`[admin.toggleVerified] success: set is_verified=${verify} on profile ${targetId}`);
   securityLog.adminAction(adminProfile.id, verify ? 'verify_user' : 'unverify_user', targetId);
 
   return { success: true };

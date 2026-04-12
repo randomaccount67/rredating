@@ -2,7 +2,7 @@
 import { useApi } from '@/lib/api';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { MessageSquare, UserCheck, Clock, BadgeCheck, Heart } from 'lucide-react';
+import { MessageSquare, UserCheck, Clock, BadgeCheck, Users } from 'lucide-react';
 import { createClient } from '@/lib/supabase';
 import ProfileModal from '@/components/profile/ProfileModal';
 import { Profile } from '@/types';
@@ -27,8 +27,7 @@ export default function InboxPage() {
   const router = useRouter();
   const [items, setItems] = useState<InboxItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'requests' | 'chats' | 'friends'>('requests');
-  const [friendIds, setFriendIds] = useState<Set<string>>(new Set());
+  const [tab, setTab] = useState<'requests' | 'chats' | 'matches'>('requests');
   const [myProfileId, setMyProfileId] = useState<string | null>(null);
   const [viewingProfile, setViewingProfile] = useState<Profile | null>(null);
 
@@ -50,10 +49,6 @@ export default function InboxPage() {
 
   useEffect(() => {
     fetchInbox(true);
-    try {
-      const stored = localStorage.getItem('friend_ids');
-      if (stored) setFriendIds(new Set(JSON.parse(stored)));
-    } catch { /* ignore */ }
   }, [fetchInbox]);
 
   // Realtime: new match requests coming in
@@ -100,9 +95,9 @@ export default function InboxPage() {
     };
   }, [myProfileId, fetchInbox]);
 
-  const requests = items.filter(i => i.type === 'match_request');
+  const requests = items.filter(i => i.type === 'match_request' && i.status === 'pending');
   const chats = items.filter(i => i.type === 'conversation');
-  const friends = chats.filter(c => friendIds.has(c.user.id));
+  const matches = chats;
 
   const handleAccept = async (requestId: string) => {
     try {
@@ -144,13 +139,13 @@ export default function InboxPage() {
       {/* Tabs */}
       <div className="flex border-b border-[#252830] mb-6">
         {[
-          { key: 'requests', label: 'DUO REQUESTS', icon: <UserCheck size={14} />, count: requests.filter(r => r.status === 'pending').length, activeColor: '#FF4655' },
+          { key: 'requests', label: 'DUO REQUESTS', icon: <UserCheck size={14} />, count: requests.length, activeColor: '#FF4655' },
           { key: 'chats', label: 'MESSAGES', icon: <MessageSquare size={14} />, count: chats.reduce((acc, c) => acc + (c.unread ?? 0), 0), activeColor: '#00E5FF' },
-          { key: 'friends', label: 'FRIENDS', icon: <Heart size={14} />, count: 0, activeColor: '#FF7EB3' },
+          { key: 'matches', label: 'MATCHES', icon: <Users size={14} />, count: 0, activeColor: '#FF7EB3' },
         ].map(t => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key as 'requests' | 'chats' | 'friends')}
+            onClick={() => setTab(t.key as 'requests' | 'chats' | 'matches')}
             className={`flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 relative ${tab === t.key ? 'border-b-2' : 'border-transparent text-[#8B90A8] hover:text-[#ECF0F8]'}`}
             style={{
               fontFamily: 'Barlow Condensed, sans-serif',
@@ -253,25 +248,25 @@ export default function InboxPage() {
             ))
           )}
         </div>
-      ) : tab === 'friends' ? (
+      ) : tab === 'matches' ? (
         <div className="space-y-2">
-          {friends.length === 0 ? (
+          {matches.length === 0 ? (
             <div className="text-center py-16">
-              <Heart size={32} className="text-[#2A2D35] mx-auto mb-3" />
+              <Users size={32} className="text-[#2A2D35] mx-auto mb-3" />
               <p className="font-bold text-xl uppercase text-[#2A2D35]" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
-                NO FRIENDS YET
+                NO MATCHES YET
               </p>
-              <p className="text-[#525566] text-sm mt-1">Open a chat and tap Add Friend</p>
+              <p className="text-[#525566] text-sm mt-1">Match with someone to start chatting</p>
             </div>
           ) : (
-            friends.map(chat => (
+            matches.map(chat => (
               <div
                 key={chat.id}
-                className="flex items-center gap-4 border p-4 transition-all cursor-pointer bg-[#171A22] border-[#FF7EB3]/20 hover:border-[#FF7EB3]/40"
+                className="flex items-center gap-4 border p-4 transition-all cursor-pointer bg-[#171A22] border-[#252830] hover:border-[#00E5FF]/20"
                 onClick={() => router.push(`/inbox/${chat.conversation_id}`)}
               >
                 <button
-                  className="w-12 h-12 bg-[#11141B] border border-[#252830] overflow-hidden flex-shrink-0 hover:border-[#FF7EB3]/40 transition-colors"
+                  className="w-12 h-12 bg-[#11141B] border border-[#252830] overflow-hidden flex-shrink-0 hover:border-[#00E5FF]/40 transition-colors"
                   style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}
                   onClick={e => { e.stopPropagation(); setViewingProfile(buildProfile(chat.user)); }}
                   title="View profile"
@@ -287,7 +282,7 @@ export default function InboxPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     <button
-                      className="text-sm text-[#E8EAF0] hover:text-[#FF7EB3] transition-colors text-left"
+                      className="text-sm text-[#E8EAF0] hover:text-[#00E5FF] transition-colors text-left"
                       onClick={e => { e.stopPropagation(); setViewingProfile(buildProfile(chat.user)); }}
                     >
                       {chat.user.riot_id}#{chat.user.riot_tag}
@@ -300,7 +295,6 @@ export default function InboxPage() {
                     <p className="text-xs truncate mt-0.5 text-[#525566]">{chat.last_message}</p>
                   )}
                 </div>
-                <Heart size={12} className="text-[#FF7EB3] flex-shrink-0" fill="#FF7EB3" />
               </div>
             ))
           )}

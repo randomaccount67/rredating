@@ -3,7 +3,7 @@ import { useApi } from '@/lib/api';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
-import { AlertTriangle, Eye, Contrast } from 'lucide-react';
+import { AlertTriangle, Eye, Contrast, Check } from 'lucide-react';
 
 export default function SettingsPage() {
   const api = useApi();
@@ -13,6 +13,7 @@ export default function SettingsPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     try {
@@ -37,6 +38,13 @@ export default function SettingsPage() {
       if (val) document.documentElement.setAttribute('data-high-contrast', '');
       else document.documentElement.removeAttribute('data-high-contrast');
     } catch { /* ignore */ }
+  };
+
+  const handleSaveSettings = () => {
+    // Settings are already persisted to localStorage on each toggle.
+    // This button gives users explicit confirmation that settings are saved.
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
   };
 
   const handleDelete = async () => {
@@ -118,6 +126,15 @@ export default function SettingsPage() {
             />
           </div>
         </div>
+
+        {/* Save button */}
+        <button
+          onClick={handleSaveSettings}
+          className="w-full flex items-center justify-center gap-2 py-3 font-black text-sm uppercase tracking-wider transition-all bg-[#FF4655] text-white hover:bg-[#FF5F6D]"
+          style={{ fontFamily: 'Barlow Condensed, sans-serif', clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}
+        >
+          {saved ? <><Check size={14} /> SAVED</> : 'SAVE SETTINGS'}
+        </button>
 
         {/* Danger zone */}
         <div className="bg-[#171A22] border border-[#FF4655]/20" style={{ borderTop: '3px solid #FF4655' }}>

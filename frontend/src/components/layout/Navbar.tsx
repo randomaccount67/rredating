@@ -217,7 +217,7 @@ export default function Navbar() {
               <Link
                 href="/settings"
                 aria-label="Settings"
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider border transition-all min-h-[44px] min-w-[44px]
+                className={`flex items-center justify-center px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider border transition-all min-h-[44px] min-w-[44px]
                   ${pathname.startsWith('/settings')
                     ? 'border-[#FF4655] text-[#FF4655]'
                     : 'border-[#2A2D35] text-[#8B90A8] hover:text-[#ECF0F8] hover:border-[#525566]'

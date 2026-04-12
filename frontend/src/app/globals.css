@@ -236,6 +236,26 @@ input::placeholder, textarea::placeholder {
   --online: #4A90E2;
 }
 
+/* Colorblind mode — override hardcoded Tailwind hex classes */
+[data-colorblind] .bg-\[\#FF4655\] { background-color: #E8890A !important; }
+[data-colorblind] .hover\:bg-\[\#FF4655\]:hover { background-color: #E8890A !important; }
+[data-colorblind] .bg-\[\#FF5F6D\] { background-color: #F09820 !important; }
+[data-colorblind] .hover\:bg-\[\#FF5F6D\]:hover { background-color: #F09820 !important; }
+[data-colorblind] .text-\[\#FF4655\] { color: #E8890A !important; }
+[data-colorblind] .border-\[\#FF4655\] { border-color: #E8890A !important; }
+[data-colorblind] .border-b-\[\#FF4655\] { border-bottom-color: #E8890A !important; }
+[data-colorblind] .border-\[\#FF4655\]\/20 { border-color: rgba(232,137,10,0.20) !important; }
+[data-colorblind] .border-\[\#FF4655\]\/30 { border-color: rgba(232,137,10,0.30) !important; }
+[data-colorblind] .border-\[\#FF4655\]\/40 { border-color: rgba(232,137,10,0.40) !important; }
+[data-colorblind] .bg-\[\#FF4655\]\/5 { background-color: rgba(232,137,10,0.05) !important; }
+[data-colorblind] .bg-\[\#FF4655\]\/10 { background-color: rgba(232,137,10,0.10) !important; }
+[data-colorblind] .bg-\[\#FF4655\]\/20 { background-color: rgba(232,137,10,0.20) !important; }
+[data-colorblind] .text-\[\#00E5FF\] { color: #4A90E2 !important; }
+[data-colorblind] .border-\[\#00E5FF\] { border-color: #4A90E2 !important; }
+[data-colorblind] .border-\[\#00E5FF\]\/20 { border-color: rgba(74,144,226,0.20) !important; }
+[data-colorblind] .border-\[\#00E5FF\]\/30 { border-color: rgba(74,144,226,0.30) !important; }
+[data-colorblind] .bg-\[\#00E5FF\] { background-color: #4A90E2 !important; }
+
 /* High contrast mode — increases text and border contrast */
 [data-high-contrast] {
   --text-primary: #FFFFFF;
