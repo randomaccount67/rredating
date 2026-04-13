@@ -37,6 +37,14 @@ app.use(globalLimiter);
 app.use(corsMiddleware);
 app.use(express.json({ limit: '1mb' }));
 
+// Prevent Cloudflare (and any other proxy) from caching API responses
+app.use((_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Surrogate-Control', 'no-store');
+  next();
+});
+
 // All routes
 app.use(router);
 
