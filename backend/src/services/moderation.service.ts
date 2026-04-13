@@ -19,7 +19,8 @@ export async function blockUser(profile: Profile, blockedId: string) {
     { ignoreDuplicates: true }
   );
 
-  // Cascading cleanup: find conversation → delete messages → delete viewers → delete conversation
+  // Clear presence records for the conversation but preserve messages and the
+  // conversation itself so admins can still review the chat via the admin panel.
   const { data: conv } = await db
     .from('conversations')
     .select('id')
@@ -29,11 +30,8 @@ export async function blockUser(profile: Profile, blockedId: string) {
     .single();
 
   if (conv) {
-    await Promise.all([
-      db.from('messages').delete().eq('conversation_id', conv.id),
-      db.from('conversation_viewers').delete().eq('conversation_id', conv.id),
-    ]);
-    await db.from('conversations').delete().eq('id', conv.id);
+    // Only clear ephemeral presence rows — messages stay for admin review
+    await db.from('conversation_viewers').delete().eq('conversation_id', conv.id);
   }
 
   // Delete match requests between users (both directions)

@@ -6,6 +6,7 @@ import { Profile, REGIONS, ROLES, getRankTier } from '@/types';
 import ProfileModal from '@/components/profile/ProfileModal';
 import ReportModal from '@/components/shared/ReportModal';
 import { useApi } from '@/lib/api';
+import Link from 'next/link';
 
 const RANKS_TIERS = ['Any', 'Unranked', 'Iron', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Ascendant', 'Immortal', 'Radiant'];
 
@@ -32,11 +33,26 @@ export default function MatchPage() {
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [requestStatuses, setRequestStatuses] = useState<Record<string, 'pending' | 'matched' | 'declined'>>({});
-  const [filters, setFilters] = useState<Filters>({ region: '', rank_tier: 'Any', role: '', gender: '' });
-  const [seenProfileIds] = useState(() => new Set<string>());
+  const [filters, setFilters] = useState<Filters>(() => {
+    if (typeof window === 'undefined') return { region: '', rank_tier: 'Any', role: '', gender: '' };
+    try {
+      const raw = localStorage.getItem('browse_filters');
+      if (raw) return JSON.parse(raw) as Filters;
+    } catch {}
+    return { region: '', rank_tier: 'Any', role: '', gender: '' };
+  });
+  const [seenProfileIds] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set<string>();
+    try {
+      const raw = sessionStorage.getItem('browse_seen');
+      if (raw) return new Set<string>(JSON.parse(raw));
+    } catch {}
+    return new Set<string>();
+  });
   const [actionLoading, setActionLoading] = useState(false);
   const [reportingProfile, setReportingProfile] = useState<Profile | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [apiMisconfig, setApiMisconfig] = useState(false);
   const [browseMeta, setBrowseMeta] = useState<{ poolSize: number | null; filtersActive: boolean | null }>({
     poolSize: null,
@@ -52,9 +68,16 @@ export default function MatchPage() {
     }
   }, []);
 
+  const persistSeen = useCallback(() => {
+    try {
+      sessionStorage.setItem('browse_seen', JSON.stringify([...seenProfileIds]));
+    } catch {}
+  }, [seenProfileIds]);
+
   const fetchProfiles = useCallback(async (pageNum: number, currentFilters: Filters) => {
     setLoading(true);
     setFetchError(null);
+    setNeedsOnboarding(false);
     try {
       const params = new URLSearchParams({
         page: String(pageNum),
@@ -66,19 +89,25 @@ export default function MatchPage() {
       });
       const res = await api(`/api/match?${params}`);
       if (!res.ok) {
+        if (res.status === 404) {
+          setNeedsOnboarding(true);
+          setProfiles([]);
+          return;
+        }
         throw new Error(
           res.status === 401 ? 'Sign in again (session invalid).' : `Server returned ${res.status}.`,
         );
       }
       const data = await res.json();
       if (pageNum === 0) {
-        seenProfileIds.clear();
         data.profiles.forEach((p: Profile) => seenProfileIds.add(p.id));
+        persistSeen();
         setProfiles(data.profiles);
         setCurrentIndex(0);
       } else {
         const newProfiles = (data.profiles as Profile[]).filter(p => !seenProfileIds.has(p.id));
         newProfiles.forEach(p => seenProfileIds.add(p.id));
+        persistSeen();
         setProfiles(prev => [...prev, ...newProfiles]);
       }
       setHasMore(data.hasMore);
@@ -101,11 +130,20 @@ export default function MatchPage() {
     } finally {
       setLoading(false);
     }
-  }, [api]);
+  }, [api, seenProfileIds, persistSeen]);
+
+  // Persist filters to localStorage whenever they change
+  useEffect(() => {
+    try { localStorage.setItem('browse_filters', JSON.stringify(filters)); } catch {}
+  }, [filters]);
 
   useEffect(() => {
+    // Clear seen set when filters change so users see fresh results per filter combo
+    seenProfileIds.clear();
+    try { sessionStorage.removeItem('browse_seen'); } catch {}
     setPage(0);
     fetchProfiles(0, filters);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters, fetchProfiles]);
 
   // Load more when approaching the end (avoid firing on every small list on first paint)
@@ -176,7 +214,12 @@ export default function MatchPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => { setPage(0); fetchProfiles(0, filters); }}
+            onClick={() => {
+              seenProfileIds.clear();
+              try { sessionStorage.removeItem('browse_seen'); } catch {}
+              setPage(0);
+              fetchProfiles(0, filters);
+            }}
             className="btn-ghost p-2"
             title="Refresh"
           >
@@ -195,6 +238,23 @@ export default function MatchPage() {
       {apiMisconfig && (
         <div className="mb-4 p-3 border border-amber-600/50 bg-amber-950/40 text-amber-200/90 text-xs font-mono leading-relaxed">
           NEXT_PUBLIC_API_URL is unset or points at localhost while the site is not on localhost. The Browse page cannot reach your API — set NEXT_PUBLIC_API_URL on Netlify to your backend URL (e.g. https://api.yourdomain.com) and redeploy.
+        </div>
+      )}
+      {needsOnboarding && !loading && (
+        <div className="text-center py-16 max-w-md mx-auto px-2">
+          <p className="font-extrabold text-2xl uppercase text-[#E8EAF0] mb-3" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+            PROFILE REQUIRED
+          </p>
+          <p className="text-[#8B90A8] text-sm mb-6 leading-relaxed">
+            You need to set up your profile before you can browse. It only takes a minute.
+          </p>
+          <Link
+            href="/onboarding"
+            className="inline-flex items-center justify-center px-6 py-3 bg-[#FF4655] text-white font-bold text-sm uppercase tracking-wider hover:bg-[#FF5F6D] transition-colors"
+            style={{ fontFamily: 'Barlow Condensed, sans-serif', clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}
+          >
+            SET UP PROFILE
+          </Link>
         </div>
       )}
       {fetchError && !loading && (
@@ -291,7 +351,12 @@ export default function MatchPage() {
             </>
           )}
           <button
-            onClick={() => { setPage(0); fetchProfiles(0, filters); }}
+            onClick={() => {
+              seenProfileIds.clear();
+              try { sessionStorage.removeItem('browse_seen'); } catch {}
+              setPage(0);
+              fetchProfiles(0, filters);
+            }}
             className="mt-6 btn-ghost text-xs"
           >
             <RefreshCw size={12} className="inline mr-1" /> REFRESH

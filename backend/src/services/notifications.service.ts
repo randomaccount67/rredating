@@ -38,11 +38,17 @@ export async function listNotifications(profile: Profile) {
   return { notifications };
 }
 
-export async function markAllRead(profile: Profile) {
-  await db
+export async function markAllRead(profile: Profile, relatedUserId?: string) {
+  let query = db
     .from('notifications')
     .update({ read: true })
     .eq('user_id', profile.id)
     .eq('read', false);
+
+  if (relatedUserId) {
+    query = query.eq('related_user', relatedUserId);
+  }
+
+  await query;
   return { success: true };
 }

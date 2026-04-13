@@ -82,7 +82,12 @@ export default function MessageThreadPage() {
         if (!res.ok) { router.push('/inbox'); return; }
         const d = await res.json();
         setData(d);
-        api('/api/notifications/read', { method: 'POST' }).catch(() => {});
+        // Mark only this conversation partner's notifications as read so other
+        // conversations' unread indicators are not affected.
+        api('/api/notifications/read', {
+          method: 'POST',
+          body: JSON.stringify({ related_user_id: d.other_user?.id }),
+        }).catch(() => {});
       } catch (e) {
         console.error(e);
         router.push('/inbox');

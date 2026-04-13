@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Upload, Save, Check, AlertTriangle, UserX } from 'lucide-react';
 import { RANKS, REGIONS, ROLES, MUSIC_TAGS, AGENTS, Profile } from '@/types';
+import VerifiedBadge from '@/components/shared/VerifiedBadge';
 
 interface BlockedUser {
   blocked_id: string;
@@ -181,9 +182,16 @@ export default function ProfilePage() {
           <div className="w-6 h-[2px] bg-[#FF4655]" />
           <span className="font-mono text-[10px] text-[#4A4440] tracking-widest uppercase">MY PROFILE</span>
         </div>
-        <h1 className="font-black text-5xl uppercase text-[#F2EDE4]" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
-          EDIT PROFILE
-        </h1>
+        <div className="flex items-center gap-3">
+          <h1 className="font-black text-5xl uppercase text-[#F2EDE4]" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+            EDIT PROFILE
+          </h1>
+          {profile?.is_verified && (
+            <div title="Verified">
+              <VerifiedBadge size={28} />
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="space-y-4">

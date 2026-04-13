@@ -32,6 +32,21 @@ export default function InboxPage() {
   const [myProfileId, setMyProfileId] = useState<string | null>(null);
   const [viewingProfile, setViewingProfile] = useState<Profile | null>(null);
 
+  // ── DEBUG: unconditional mount-time channel test ──────────────────────────
+  // Check the browser console for "TEST CHANNEL STATUS:" after this is deployed.
+  // SUBSCRIBED → Supabase credentials are valid and realtime is reachable.
+  // CHANNEL_ERROR / TIMED_OUT → wrong URL or anon key (check Netlify env vars).
+  // Nothing logged at all → this useEffect is never running (SSR / bundle issue).
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase.channel('__debug_test__');
+    channel.subscribe((status) => {
+      console.log('[Supabase Realtime] TEST CHANNEL STATUS:', status);
+    });
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+  // ── END DEBUG ─────────────────────────────────────────────────────────────
+
   const fetchInbox = useCallback(async (showLoading = false) => {
     if (showLoading) setLoading(true);
     try {

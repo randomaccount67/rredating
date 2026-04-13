@@ -43,6 +43,6 @@ export const listNotifications = wrap(async (req: Request, res: Response) => {
 });
 
 export const markNotificationsRead = wrap(async (req: Request, res: Response) => {
-  const result = await notificationsService.markAllRead(req.profile!);
+  const result = await notificationsService.markAllRead(req.profile!, req.body.related_user_id);
   res.json(result);
 });
