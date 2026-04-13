@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { SlidersHorizontal, RefreshCw, X, Heart, Flag } from 'lucide-react';
+import { SlidersHorizontal, RefreshCw, X, Heart, Flag, Undo2 } from 'lucide-react';
 import VerifiedBadge from '@/components/shared/VerifiedBadge';
 import { Profile, REGIONS, ROLES, getRankTier } from '@/types';
 import ProfileModal from '@/components/profile/ProfileModal';
@@ -21,6 +21,8 @@ interface Filters {
   rank_tier: string;
   role: string;
   gender: string;
+  age_min: number;
+  age_max: number;
 }
 
 export default function MatchPage() {
@@ -33,13 +35,15 @@ export default function MatchPage() {
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [requestStatuses, setRequestStatuses] = useState<Record<string, 'pending' | 'matched' | 'declined'>>({});
+  const [lastPassedProfile, setLastPassedProfile] = useState<Profile | null>(null);
   const [filters, setFilters] = useState<Filters>(() => {
-    if (typeof window === 'undefined') return { region: '', rank_tier: 'Any', role: '', gender: '' };
+    const defaults: Filters = { region: '', rank_tier: 'Any', role: '', gender: '', age_min: 18, age_max: 99 };
+    if (typeof window === 'undefined') return defaults;
     try {
       const raw = localStorage.getItem('browse_filters');
-      if (raw) return JSON.parse(raw) as Filters;
+      if (raw) return { ...defaults, ...JSON.parse(raw) as Filters };
     } catch {}
-    return { region: '', rank_tier: 'Any', role: '', gender: '' };
+    return defaults;
   });
   const [seenProfileIds] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return new Set<string>();
@@ -86,6 +90,8 @@ export default function MatchPage() {
         ...(currentFilters.rank_tier && currentFilters.rank_tier !== 'Any' && { rank_tier: currentFilters.rank_tier }),
         ...(currentFilters.role && { role: currentFilters.role }),
         ...(currentFilters.gender && { gender: currentFilters.gender }),
+        ...(currentFilters.age_min > 18 && { age_min: String(currentFilters.age_min) }),
+        ...(currentFilters.age_max < 99 && { age_max: String(currentFilters.age_max) }),
       });
       const res = await api(`/api/match?${params}`);
       if (!res.ok) {
@@ -186,16 +192,35 @@ export default function MatchPage() {
   const handlePass = async (profileId: string) => {
     if (actionLoading) return;
     setActionLoading(true);
+    const passed = profiles.find(p => p.id === profileId) ?? null;
     try {
       await api('/api/match/pass', {
         method: 'POST',
         body: JSON.stringify({ to_user_profile_id: profileId }),
       });
+      setLastPassedProfile(passed);
     } catch (e) {
       console.error(e);
     } finally {
       setActionLoading(false);
       advance();
+    }
+  };
+
+  const handleUndo = async () => {
+    if (!lastPassedProfile || actionLoading) return;
+    setActionLoading(true);
+    try {
+      await api('/api/match/pass', {
+        method: 'DELETE',
+        body: JSON.stringify({ to_user_profile_id: lastPassedProfile.id }),
+      });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLastPassedProfile(null);
+      setCurrentIndex(prev => Math.max(0, prev - 1));
+      setActionLoading(false);
     }
   };
 
@@ -310,6 +335,46 @@ export default function MatchPage() {
               <option value="Female">FEMALE</option>
               <option value="Other">OTHER</option>
             </select>
+          </div>
+          <div className="col-span-2 sm:col-span-4">
+            <label className="label block mb-2">
+              AGE RANGE
+              {(filters.age_min > 18 || filters.age_max < 99) ? (
+                <span className="text-[#FF4655] ml-2">{filters.age_min} – {filters.age_max}</span>
+              ) : (
+                <span className="text-[#525566] ml-2">ANY (18 – 99)</span>
+              )}
+            </label>
+            <div className="flex items-center gap-3">
+              <span className="font-mono text-[10px] text-[#525566] flex-shrink-0">18</span>
+              <div className="flex-1 flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-[10px] text-[#8B8FA8] w-6">MIN</span>
+                  <input
+                    type="range"
+                    min={18}
+                    max={filters.age_max}
+                    value={filters.age_min}
+                    onChange={e => setFilters(prev => ({ ...prev, age_min: Number(e.target.value) }))}
+                    className="flex-1 accent-[#FF4655] h-1"
+                  />
+                  <span className="font-mono text-[10px] text-[#E8EAF0] w-5 text-right">{filters.age_min}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-[10px] text-[#8B8FA8] w-6">MAX</span>
+                  <input
+                    type="range"
+                    min={filters.age_min}
+                    max={99}
+                    value={filters.age_max}
+                    onChange={e => setFilters(prev => ({ ...prev, age_max: Number(e.target.value) }))}
+                    className="flex-1 accent-[#FF4655] h-1"
+                  />
+                  <span className="font-mono text-[10px] text-[#E8EAF0] w-5 text-right">{filters.age_max}</span>
+                </div>
+              </div>
+              <span className="font-mono text-[10px] text-[#525566] flex-shrink-0">99</span>
+            </div>
           </div>
         </div>
       )}
@@ -467,6 +532,17 @@ export default function MatchPage() {
 
             {/* Action buttons */}
             <div className="flex gap-3">
+              {lastPassedProfile && (
+                <button
+                  onClick={handleUndo}
+                  disabled={actionLoading}
+                  className="flex items-center justify-center gap-1.5 px-3 py-3 border border-[#252830] text-[#525566] hover:border-amber-500/50 hover:text-amber-400 transition-all font-bold text-xs uppercase tracking-wider disabled:opacity-50"
+                  style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
+                  title={`Undo pass on ${lastPassedProfile.riot_id}`}
+                >
+                  <Undo2 size={14} />
+                </button>
+              )}
               <button
                 onClick={() => handlePass(currentProfile.id)}
                 disabled={actionLoading}

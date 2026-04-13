@@ -30,8 +30,10 @@ router.delete('/api/account',      ...protect, rateLimit('account-delete', 2, 60
 // ─── Match ─────────────────────────────────────────────────────
 router.get('/api/match',                ...protect, rateLimit('browse', 60, 60_000), match.browse);
 router.post('/api/match',               ...protect, rateLimit('match', 20, 3_600_000), match.sendRequest);
+router.delete('/api/match',             ...protect, match.unmatch);
 router.post('/api/match/respond',       ...protect, match.respond);
 router.post('/api/match/pass',          ...protect, match.pass);
+router.delete('/api/match/pass',        ...protect, match.deletePass);
 
 // ─── Social ────────────────────────────────────────────────────
 router.get('/api/inbox',                ...protect, social.listInbox);

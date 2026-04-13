@@ -3,7 +3,7 @@ import { useApi } from '@/lib/api';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Send, ArrowLeft, AlertTriangle, Flag, UserX } from 'lucide-react';
+import { Send, ArrowLeft, AlertTriangle, Flag, UserX, HeartOff } from 'lucide-react';
 import ReportModal from '@/components/shared/ReportModal';
 import ProfileModal from '@/components/profile/ProfileModal';
 import { createClient } from '@/lib/supabase';
@@ -41,6 +41,8 @@ export default function MessageThreadPage() {
   const [showProfile, setShowProfile] = useState(false);
   const [showBlockConfirm, setShowBlockConfirm] = useState(false);
   const [blocking, setBlocking] = useState(false);
+  const [showUnmatchConfirm, setShowUnmatchConfirm] = useState(false);
+  const [unmatching, setUnmatching] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -191,6 +193,29 @@ export default function MessageThreadPage() {
     }
   };
 
+  const handleUnmatch = async () => {
+    if (!data) return;
+    setUnmatching(true);
+    try {
+      const res = await api('/api/match', {
+        method: 'DELETE',
+        body: JSON.stringify({ other_profile_id: data.other_user.id }),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        setError(d.error || 'Failed to unmatch');
+        setShowUnmatchConfirm(false);
+        return;
+      }
+      router.push('/inbox');
+    } catch {
+      setError('Failed to unmatch');
+      setShowUnmatchConfirm(false);
+    } finally {
+      setUnmatching(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-8">
@@ -235,6 +260,14 @@ export default function MessageThreadPage() {
         </button>
 
         <div className="flex items-center gap-1 flex-shrink-0">
+          <button
+            onClick={() => setShowUnmatchConfirm(true)}
+            className="text-[#525566] hover:text-amber-400 transition-colors p-1"
+            title="Unmatch"
+            aria-label="Unmatch"
+          >
+            <HeartOff size={14} />
+          </button>
           <button
             onClick={() => setShowBlockConfirm(true)}
             className="text-[#525566] hover:text-[#FF4655] transition-colors p-1"
@@ -304,6 +337,42 @@ export default function MessageThreadPage() {
                 style={{ fontFamily: 'Barlow Condensed, sans-serif', clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}
               >
                 {blocking ? 'BLOCKING...' : 'CONFIRM BLOCK'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unmatch confirmation modal */}
+      {showUnmatchConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+          <div
+            className="bg-[#1A1D24] border border-amber-500/40 p-6 max-w-sm w-full"
+            style={{ clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}
+          >
+            <h3 className="font-bold text-lg uppercase text-amber-400 mb-2"
+              style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+              UNMATCH {otherName}?
+            </h3>
+            <p className="text-[#8B90A8] text-sm mb-6 font-mono">
+              This will remove your match and close the conversation. You won&apos;t be blocked — you may see each other again in Browse.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowUnmatchConfirm(false)}
+                disabled={unmatching}
+                className="flex-1 py-2.5 text-sm font-bold uppercase border border-[#252830] text-[#525566] hover:border-[#525566] transition-all disabled:opacity-50"
+                style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
+              >
+                CANCEL
+              </button>
+              <button
+                onClick={handleUnmatch}
+                disabled={unmatching}
+                className="flex-1 py-2.5 text-sm font-bold uppercase bg-amber-500 text-[#11141B] hover:bg-amber-400 transition-all disabled:opacity-50"
+                style={{ fontFamily: 'Barlow Condensed, sans-serif', clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}
+              >
+                {unmatching ? 'UNMATCHING...' : 'CONFIRM UNMATCH'}
               </button>
             </div>
           </div>

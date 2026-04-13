@@ -29,12 +29,13 @@ async function broadcastMessage(conversationId: string, message: Record<string, 
         }],
       }),
     });
+    const text = await res.text();
+    console.log('[broadcast] broadcast result:', res.status, text);
     if (!res.ok) {
-      const text = await res.text();
       console.error(`[broadcast] HTTP ${res.status}:`, text);
     }
   } catch (err) {
-    console.error('[broadcast] Failed to broadcast message:', err);
+    console.log('[broadcast] broadcast error:', err);
   }
 }
 
@@ -112,6 +113,7 @@ export async function sendMessage(profile: Profile, conversationId: string, cont
 
   // Broadcast to frontend realtime subscribers. Fire-and-forget so a broadcast
   // failure never breaks message delivery.
+  console.log('[broadcast] attempting broadcast for conversation:', conversationId);
   broadcastMessage(conversationId, message as unknown as Record<string, unknown>);
 
   // Check if other user is actively viewing (skip notification if so)

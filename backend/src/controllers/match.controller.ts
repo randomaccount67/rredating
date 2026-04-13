@@ -21,3 +21,13 @@ export const pass = wrap(async (req: Request, res: Response) => {
   const result = await matchService.pass(req.profile!, req.body.to_user_profile_id);
   res.json(result);
 });
+
+export const deletePass = wrap(async (req: Request, res: Response) => {
+  const result = await matchService.deletePass(req.profile!, req.body.to_user_profile_id);
+  res.json(result);
+});
+
+export const unmatch = wrap(async (req: Request, res: Response) => {
+  const result = await matchService.unmatch(req.profile!, req.body.other_profile_id);
+  res.json(result);
+});

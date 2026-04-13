@@ -11,16 +11,24 @@ import type { Profile } from '../types/index.js';
  * `.rpc()` (filters or pagination can be dropped), which produced empty Browse.
  */
 function hasBrowseQueryFilters(query: Record<string, string>): boolean {
+  const ageMin = query.age_min ? parseInt(query.age_min, 10) : 18;
+  const ageMax = query.age_max ? parseInt(query.age_max, 10) : 99;
   return !!(
     query.region ||
     (query.rank_tier && query.rank_tier !== 'Any') ||
     query.role ||
     query.gender ||
-    query.mic_only === '1'
+    query.mic_only === '1' ||
+    ageMin > 18 ||
+    ageMax < 99
   );
 }
 
 function filterBrowseCandidates(rows: Profile[], query: Record<string, string>): Profile[] {
+  const ageMin = query.age_min ? parseInt(query.age_min, 10) : 18;
+  const ageMax = query.age_max ? parseInt(query.age_max, 10) : 99;
+  const filteringAge = ageMin > 18 || ageMax < 99;
+
   return rows.filter(p => {
     if (query.region && p.region !== query.region) return false;
     if (query.role && p.role !== query.role) return false;
@@ -40,6 +48,9 @@ function filterBrowseCandidates(rows: Profile[], query: Record<string, string>):
       } else {
         if (p.gender === 'Male' || p.gender === 'Female' || p.gender == null) return false;
       }
+    }
+    if (filteringAge) {
+      if (p.age == null || p.age < ageMin || p.age > ageMax) return false;
     }
     return true;
   });
@@ -117,7 +128,8 @@ export async function browse(profile: Profile, query: Record<string, string>) {
   const offset = page * limit;
 
   const candidates = filterBrowseCandidates(await loadBrowseCandidates(profile), query);
-  const windowRows = candidates.slice(offset, offset + limit * 2);
+  // Use non-overlapping windows so the same profile never appears on two different pages.
+  const windowRows = candidates.slice(offset, offset + limit);
 
   if (windowRows.length === 0) {
     return {
@@ -129,7 +141,7 @@ export async function browse(profile: Profile, query: Record<string, string>) {
     };
   }
 
-  const shuffled = [...windowRows].sort(() => Math.random() - 0.5).slice(0, limit);
+  const shuffled = [...windowRows].sort(() => Math.random() - 0.5);
 
   const ids = shuffled.map(p => p.id);
   const { data: statuses } = await db
@@ -143,7 +155,7 @@ export async function browse(profile: Profile, query: Record<string, string>) {
 
   return {
     profiles: shuffled,
-    hasMore: windowRows.length > limit || offset + limit * 2 < candidates.length,
+    hasMore: offset + limit < candidates.length,
     requestStatuses,
     poolSize: candidates.length,
     filtersActive: hasBrowseQueryFilters(query),
@@ -280,5 +292,36 @@ export async function pass(profile: Profile, toProfileId: string) {
     { from_user: profile.id, to_user: toProfileId },
     { ignoreDuplicates: true }
   );
+  return { success: true };
+}
+
+export async function deletePass(profile: Profile, toProfileId: string) {
+  if (!toProfileId) throw badRequest('to_user_profile_id is required');
+  if (!uuidSchema.safeParse(toProfileId).success) throw badRequest('Invalid profile ID format');
+  await db
+    .from('passes')
+    .delete()
+    .eq('from_user', profile.id)
+    .eq('to_user', toProfileId);
+  return { success: true };
+}
+
+export async function unmatch(profile: Profile, otherProfileId: string) {
+  if (!otherProfileId) throw badRequest('other_profile_id is required');
+  if (!uuidSchema.safeParse(otherProfileId).success) throw badRequest('Invalid profile ID format');
+  if (otherProfileId === profile.id) throw badRequest('Cannot unmatch yourself');
+
+  // Remove match request(s) in either direction
+  await db
+    .from('match_requests')
+    .delete()
+    .or(`and(from_user.eq.${profile.id},to_user.eq.${otherProfileId}),and(from_user.eq.${otherProfileId},to_user.eq.${profile.id})`);
+
+  // Remove conversation record — messages are preserved for admin review
+  await db
+    .from('conversations')
+    .delete()
+    .or(`and(user_a.eq.${profile.id},user_b.eq.${otherProfileId}),and(user_a.eq.${otherProfileId},user_b.eq.${profile.id})`);
+
   return { success: true };
 }
