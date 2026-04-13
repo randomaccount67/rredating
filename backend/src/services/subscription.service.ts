@@ -4,10 +4,10 @@ import { config } from '../config.js';
 import { badRequest } from '../utils/errors.js';
 import type { Profile } from '../types/index.js';
 
-function getStripe(): Stripe {
+function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) throw new Error('STRIPE_SECRET_KEY is not configured');
-  return new Stripe(key, { apiVersion: '2025-05-28.basil' as Stripe.LatestApiVersion });
+  return new Stripe(key, { apiVersion: '2023-10-16' });
 }
 
 export async function createCheckoutSession(profile: Profile) {
@@ -120,7 +120,7 @@ export async function getStatus(profile: Profile) {
       is_supporter: profile.is_supporter,
       supporter_since: profile.supporter_since,
       subscription_status: sub.status,
-      current_period_end: new Date((sub as unknown as { current_period_end: number }).current_period_end * 1000).toISOString(),
+      current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
     };
   } catch {
     return {
