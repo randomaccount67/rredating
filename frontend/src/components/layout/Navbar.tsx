@@ -51,10 +51,19 @@ export default function Navbar() {
 
     fetchUnread();
 
-    apiRef.current('/api/profile').then(r => r.json()).then(d => {
-      if (d.profile?.is_admin) setIsAdmin(true);
-      if (d.profile?.id) setMyProfileId(d.profile.id);
-    }).catch(() => {});
+    // Use getUser() to validate the session server-side before calling the
+    // backend — prevents a race where the token isn't ready yet on mount.
+    const supabase = createClient();
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return;
+      try {
+        const res = await apiRef.current('/api/profile');
+        if (!res.ok) return;
+        const d = await res.json();
+        if (d.profile?.is_admin) setIsAdmin(true);
+        if (d.profile?.id) setMyProfileId(d.profile.id);
+      } catch {}
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSignedIn]);
 

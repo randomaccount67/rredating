@@ -6,6 +6,71 @@ import { Upload, Save, Check, AlertTriangle, UserX } from 'lucide-react';
 import { RANKS, REGIONS, ROLES, MUSIC_TAGS, AGENTS, Profile } from '@/types';
 import VerifiedBadge from '@/components/shared/VerifiedBadge';
 
+/**
+ * Resize to ≤400×400 and compress to WebP ≤200 KB using the Canvas API.
+ * Tries decreasing quality levels until the size target is met.
+ * Falls back to the original file if the browser doesn't support WebP or
+ * if canvas operations fail for any reason.
+ */
+async function compressImage(file: File): Promise<File> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+
+      const MAX = 400;
+      let { width, height } = img;
+      if (width > MAX || height > MAX) {
+        if (width >= height) {
+          height = Math.round((height * MAX) / width);
+          width = MAX;
+        } else {
+          width = Math.round((width * MAX) / height);
+          height = MAX;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { resolve(file); return; }
+      ctx.drawImage(img, 0, 0, width, height);
+
+      const TARGET_BYTES = 200 * 1024; // 200 KB
+      const qualities = [0.85, 0.75, 0.65, 0.55, 0.45, 0.35];
+
+      const tryQuality = (idx: number) => {
+        const quality = qualities[idx] ?? 0.35;
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) { resolve(file); return; }
+            // Accept if under target OR we've exhausted quality options
+            if (blob.size <= TARGET_BYTES || idx >= qualities.length - 1) {
+              resolve(new File([blob], 'avatar.webp', { type: 'image/webp' }));
+            } else {
+              tryQuality(idx + 1);
+            }
+          },
+          'image/webp',
+          quality,
+        );
+      };
+
+      tryQuality(0);
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(file); // fallback to original on decode error
+    };
+
+    img.src = objectUrl;
+  });
+}
+
 interface BlockedUser {
   blocked_id: string;
   created_at: string;
@@ -108,13 +173,18 @@ export default function ProfilePage() {
     });
   };
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) { setError('Images only.'); return; }
     if (file.size > 8 * 1024 * 1024) { setError('Max 8MB.'); return; }
-    setAvatarFile(file);
+
+    // Show preview immediately from the original while compression runs
     setAvatarPreview(URL.createObjectURL(file));
+
+    // Compress + convert to WebP client-side before upload
+    const compressed = await compressImage(file);
+    setAvatarFile(compressed);
   };
 
   const handleSave = async () => {

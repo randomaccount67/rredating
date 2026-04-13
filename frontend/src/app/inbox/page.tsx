@@ -32,20 +32,24 @@ export default function InboxPage() {
   const [myProfileId, setMyProfileId] = useState<string | null>(null);
   const [viewingProfile, setViewingProfile] = useState<Profile | null>(null);
 
-  // ── DEBUG: unconditional mount-time channel test ──────────────────────────
-  // Check the browser console for "TEST CHANNEL STATUS:" after this is deployed.
-  // SUBSCRIBED → Supabase credentials are valid and realtime is reachable.
-  // CHANNEL_ERROR / TIMED_OUT → wrong URL or anon key (check Netlify env vars).
-  // Nothing logged at all → this useEffect is never running (SSR / bundle issue).
+  // Fetch myProfileId directly from auth on mount — don't wait for the inbox
+  // API response to provide it. supabase.auth.getUser() validates the session
+  // server-side so we know the token is live before hitting the backend.
   useEffect(() => {
     const supabase = createClient();
-    const channel = supabase.channel('__debug_test__');
-    channel.subscribe((status) => {
-      console.log('[Supabase Realtime] TEST CHANNEL STATUS:', status);
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return;
+      try {
+        const res = await api('/api/profile');
+        if (res.ok) {
+          const d = await res.json();
+          if (d.profile?.id) setMyProfileId(d.profile.id);
+        }
+      } catch {}
     });
-    return () => { supabase.removeChannel(channel); };
+  // api is a stable reference (useCallback with [] deps in useApi)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  // ── END DEBUG ─────────────────────────────────────────────────────────────
 
   const fetchInbox = useCallback(async (showLoading = false) => {
     if (showLoading) setLoading(true);

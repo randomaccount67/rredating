@@ -85,22 +85,46 @@ export async function viewConversation(userA: string, userB: string) {
   const parsedB = uuidSchema.safeParse(userB);
   if (!parsedA.success || !parsedB.success) throw badRequest('Invalid user ID format');
 
-  // Fetch all conversations between these users (duplicates may exist from old bugs)
+  // ── Path 1: look up via the conversations table ───────────────────────────
+  // Covers the normal case and handles duplicate conversation records from old bugs.
   const { data: convRows } = await db
     .from('conversations')
     .select('id')
     .or(`and(user_a.eq.${userA},user_b.eq.${userB}),and(user_a.eq.${userB},user_b.eq.${userA})`);
 
-  if (!convRows || convRows.length === 0) return { messages: [], found: false };
+  const convIdSet = new Set<string>(convRows?.map((c: any) => c.id) ?? []);
 
-  const convIds = convRows.map((c: any) => c.id);
+  // ── Path 2: supplemental lookup via the messages table ────────────────────
+  // If the conversation record was deleted (e.g. old block behaviour) or is
+  // otherwise missing, we can still recover shared conversation IDs by finding
+  // the intersection of IDs where userA sent a message AND userB sent a message.
+  // This works independently of the conversations table.
+  const { data: msgRows } = await db
+    .from('messages')
+    .select('conversation_id, sender_id')
+    .in('sender_id', [userA, userB]);
 
-  // Fetch messages from all conversations merged and sorted chronologically
+  if (msgRows && msgRows.length > 0) {
+    const aIds = new Set<string>(
+      msgRows.filter((m: any) => m.sender_id === userA).map((m: any) => m.conversation_id),
+    );
+    const bIds = new Set<string>(
+      msgRows.filter((m: any) => m.sender_id === userB).map((m: any) => m.conversation_id),
+    );
+    // Add conversation IDs shared between both users into the main set
+    for (const id of aIds) {
+      if (bIds.has(id)) convIdSet.add(id);
+    }
+  }
+
+  if (convIdSet.size === 0) return { messages: [], found: false };
+
+  // ── Fetch all messages across every found conversation ────────────────────
   const { data: messages } = await db
     .from('messages')
     .select('id, sender_id, content, created_at')
-    .in('conversation_id', convIds)
+    .in('conversation_id', [...convIdSet])
     .order('created_at', { ascending: true });
 
-  return { messages: messages || [], found: true };
+  return { messages: messages || [], found: messages && messages.length > 0 };
 }
