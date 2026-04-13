@@ -2,10 +2,11 @@
 import { useApi } from '@/lib/api';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Upload, Save, Check, AlertTriangle, UserX, Crown, Lock, Palette, ExternalLink, X } from 'lucide-react';
+import { Upload, Save, Check, AlertTriangle, UserX, Crown, Lock, ExternalLink, X, Eye } from 'lucide-react';
 import { RANKS, REGIONS, ROLES, MUSIC_TAGS, AGENTS, Profile } from '@/types';
 import VerifiedBadge from '@/components/shared/VerifiedBadge';
 import SupporterBadge from '@/components/shared/SupporterBadge';
+import ProfileModal from '@/components/profile/ProfileModal';
 import { Suspense } from 'react';
 
 async function compressImage(file: File): Promise<File> {
@@ -109,6 +110,7 @@ function ProfilePageInner() {
   const [cancelling, setCancelling] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [justSubscribed, setJustSubscribed] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
 
   const [form, setForm] = useState({
     gender: '', gender_other: '',
@@ -446,7 +448,7 @@ function ProfilePageInner() {
               <h3 className="font-bold text-lg uppercase text-[#FF4655] mb-2" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
                 CANCEL SUBSCRIPTION?
               </h3>
-              <p className="text-[#857A6A] text-sm mb-6">You&apos;ll lose access to cosmetics and supporter perks immediately.</p>
+              <p className="text-[#857A6A] text-sm mb-6">Your subscription will end at the close of your current billing period. You&apos;ll keep all perks until then.</p>
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowCancelConfirm(false)}
@@ -783,15 +785,52 @@ function ProfilePageInner() {
           </div>
         )}
 
-        {/* Save */}
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="w-full flex items-center justify-center gap-2 py-3.5 font-black text-sm uppercase tracking-wider transition-all bg-[#FF4655] text-white hover:bg-[#FF5F6D] disabled:opacity-50"
-          style={{ fontFamily: 'Barlow Condensed, sans-serif', boxShadow: '4px 4px 0px rgba(255,70,85,0.25)' }}
-        >
-          {saved ? <><Check size={16} /> SAVED</> : saving ? 'SAVING...' : <><Save size={16} /> SAVE CHANGES</>}
-        </button>
+        {/* Save + Preview */}
+        <div className="flex gap-3">
+          <button
+            onClick={() => setShowPreview(true)}
+            className="flex items-center justify-center gap-2 px-4 py-3.5 font-black text-sm uppercase tracking-wider border-2 border-[#2F2B24] text-[#857A6A] hover:border-[#00E5FF]/40 hover:text-[#00E5FF] transition-all"
+            style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
+            title="Preview how your card looks to others"
+          >
+            <Eye size={16} /> PREVIEW
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 flex items-center justify-center gap-2 py-3.5 font-black text-sm uppercase tracking-wider transition-all bg-[#FF4655] text-white hover:bg-[#FF5F6D] disabled:opacity-50"
+            style={{ fontFamily: 'Barlow Condensed, sans-serif', boxShadow: '4px 4px 0px rgba(255,70,85,0.25)' }}
+          >
+            {saved ? <><Check size={16} /> SAVED</> : saving ? 'SAVING...' : <><Save size={16} /> SAVE CHANGES</>}
+          </button>
+        </div>
+
+        {/* Profile preview modal */}
+        {showPreview && profile && (
+          <ProfileModal
+            profile={{
+              ...profile,
+              riot_id: form.riot_id || profile.riot_id,
+              riot_tag: form.riot_tag || profile.riot_tag,
+              avatar_url: avatarPreview ?? profile.avatar_url,
+              about: form.about,
+              agents: form.agents,
+              role: form.role as Profile['role'],
+              current_rank: form.current_rank as Profile['current_rank'],
+              peak_rank: form.peak_rank as Profile['peak_rank'],
+              region: form.region as Profile['region'],
+              gender: form.gender === 'Other' ? (form.gender_other || 'Other') : form.gender,
+              age: form.age,
+              music_tags: form.music_tags as Profile['music_tags'],
+              favorite_artist: form.favorite_artist,
+              ...(isSupporter ? cosmetics : {}),
+            }}
+            onClose={() => setShowPreview(false)}
+            onSendRequest={() => {}}
+            onPass={() => {}}
+            viewOnly
+          />
+        )}
 
         {/* Blocked Users */}
         <div className={section} style={{ borderTop: '3px solid #525566' }}>

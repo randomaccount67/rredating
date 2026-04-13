@@ -95,10 +95,11 @@ export async function viewConversation(userA: string, userB: string) {
   const convIdSet = new Set<string>(convRows?.map((c: any) => c.id) ?? []);
 
   // ── Path 2: supplemental lookup via the messages table ────────────────────
-  // If the conversation record was deleted (e.g. old block behaviour) or is
-  // otherwise missing, we can still recover shared conversation IDs by finding
-  // the intersection of IDs where userA sent a message AND userB sent a message.
-  // This works independently of the conversations table.
+  // Recovers conversation IDs even when the conversations record was deleted.
+  // Strategy: find all conv IDs where userA OR userB sent a message, then keep
+  // only those conv IDs where at least one of these is true:
+  //   (a) both users sent messages in it (proves shared conversation), OR
+  //   (b) the conversation already appeared in Path 1 (record may still exist)
   const { data: msgRows } = await db
     .from('messages')
     .select('conversation_id, sender_id')
@@ -111,19 +112,25 @@ export async function viewConversation(userA: string, userB: string) {
     const bIds = new Set<string>(
       msgRows.filter((m: any) => m.sender_id === userB).map((m: any) => m.conversation_id),
     );
-    // Add conversation IDs shared between both users into the main set
     for (const id of aIds) {
-      if (bIds.has(id)) convIdSet.add(id);
+      // Add if both users have messages (proven shared conv), or conv exists in table
+      if (bIds.has(id) || convIdSet.has(id)) convIdSet.add(id);
+    }
+    for (const id of bIds) {
+      if (aIds.has(id) || convIdSet.has(id)) convIdSet.add(id);
     }
   }
 
   if (convIdSet.size === 0) return { messages: [], found: false };
 
   // ── Fetch all messages across every found conversation ────────────────────
+  // Filter to sender_id in [userA, userB] — prevents leaking messages from
+  // unrelated participants if a conversation_id somehow matched unexpectedly.
   const { data: messages } = await db
     .from('messages')
     .select('id, sender_id, content, created_at')
     .in('conversation_id', [...convIdSet])
+    .in('sender_id', [userA, userB])
     .order('created_at', { ascending: true });
 
   return { messages: messages || [], found: messages && messages.length > 0 };

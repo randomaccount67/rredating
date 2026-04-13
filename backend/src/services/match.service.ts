@@ -101,6 +101,32 @@ async function browseFromProfilesTable(profile: Profile) {
   return { data: filtered.slice(0, 3000), error: null };
 }
 
+/**
+ * Fallback pool: only exclude blocked users (not passes/requests).
+ * Used when the main pool is genuinely empty so users always have someone to browse.
+ */
+async function loadFallbackCandidates(profile: Profile): Promise<Profile[]> {
+  const [blockOutRes, blockInRes] = await Promise.all([
+    db.from('blocked_users').select('blocked_id').eq('blocker_id', profile.id),
+    db.from('blocked_users').select('blocker_id').eq('blocked_id', profile.id),
+  ]);
+  const blockedIds = new Set<string>();
+  blockOutRes.data?.forEach(r => blockedIds.add(r.blocked_id));
+  blockInRes.data?.forEach(r => blockedIds.add(r.blocker_id));
+
+  const { data: rows } = await db
+    .from('profiles')
+    .select(BROWSE_COLUMNS)
+    .eq('confirmed_18', true)
+    .eq('is_banned', false)
+    .neq('id', profile.id)
+    .order('created_at', { ascending: false })
+    .limit(500);
+
+  const list = (rows as Profile[] | null) ?? [];
+  return list.filter(p => !blockedIds.has(p.id));
+}
+
 async function loadBrowseCandidates(profile: Profile): Promise<Profile[]> {
   const rpc = await db
     .rpc('get_browseable_profiles', { viewer_id: profile.id })
@@ -128,13 +154,22 @@ export async function browse(profile: Profile, query: Record<string, string>) {
   const limit = Math.min(parseInt(query.limit || '12', 10), 24);
   const offset = page * limit;
 
-  const rawCandidates = filterBrowseCandidates(await loadBrowseCandidates(profile), query);
-  // Supporters appear first — their perk of priority placement
+  let rawCandidates = filterBrowseCandidates(await loadBrowseCandidates(profile), query);
+
+  // Fallback: if pool is genuinely empty on page 0, show all non-blocked profiles
+  if (rawCandidates.length === 0 && offset === 0) {
+    const fallback = filterBrowseCandidates(await loadFallbackCandidates(profile), query);
+    if (fallback.length > 0) rawCandidates = fallback;
+  }
+
+  // Supporters and verified users get priority placement — deduplicate by ID in the same pass
+  const seenIds = new Set<string>();
   const candidates = [
-    ...rawCandidates.filter(p => p.is_supporter),
-    ...rawCandidates.filter(p => !p.is_supporter),
-  ];
-  // Use non-overlapping windows so the same profile never appears on two different pages.
+    ...rawCandidates.filter(p => p.is_supporter || p.is_verified),
+    ...rawCandidates.filter(p => !p.is_supporter && !p.is_verified),
+  ].filter(p => { if (seenIds.has(p.id)) return false; seenIds.add(p.id); return true; });
+
+  // Non-overlapping windows so the same profile never appears on two different pages
   const windowRows = candidates.slice(offset, offset + limit);
 
   if (windowRows.length === 0) {

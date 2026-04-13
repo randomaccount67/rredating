@@ -87,9 +87,10 @@ export async function handleWebhook(rawBody: Buffer, signature: string) {
     }
 
     case 'customer.subscription.updated': {
-      // Handle plan changes / reactivations
       const subscription = event.data.object as Stripe.Subscription;
       const customerId = subscription.customer as string;
+      // Keep perks active if cancel_at_period_end is set — the sub is still "active" until period ends.
+      // Perks are removed when customer.subscription.deleted fires (actual period-end expiry).
       const isActive = subscription.status === 'active' || subscription.status === 'trialing';
       await db.from('profiles')
         .update({ is_supporter: isActive })
@@ -133,8 +134,11 @@ export async function getStatus(profile: Profile) {
 export async function cancelSubscription(profile: Profile) {
   if (!profile.stripe_subscription_id) throw badRequest('No active subscription found');
   const stripe = getStripe();
-  await stripe.subscriptions.cancel(profile.stripe_subscription_id);
-  return { success: true };
+  // Schedule cancellation at period end — perks remain active until the billing cycle ends
+  await stripe.subscriptions.update(profile.stripe_subscription_id, {
+    cancel_at_period_end: true,
+  });
+  return { success: true, cancel_at_period_end: true };
 }
 
 export async function createPortalSession(profile: Profile) {

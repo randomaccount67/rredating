@@ -37,6 +37,15 @@ export async function getMessages(profile: Profile, conversationId: string) {
 
   const messages = (messagesRes.data || []).reverse();
 
+  // Mark any unread new_message notifications from this conversation as read
+  // so the inbox unread indicator and navbar badge clear immediately.
+  await db.from('notifications')
+    .update({ read: true })
+    .eq('user_id', profile.id)
+    .eq('type', 'new_message')
+    .eq('related_user', otherId)
+    .eq('read', false);
+
   return {
     id: conversationId,
     other_user: otherUserRes.data,

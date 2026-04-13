@@ -38,15 +38,22 @@ export default function MatchPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [requestStatuses, setRequestStatuses] = useState<Record<string, 'pending' | 'matched' | 'declined'>>({});
   const [lastPassedProfile, setLastPassedProfile] = useState<Profile | null>(null);
-  const [filters, setFilters] = useState<Filters>(() => {
-    const defaults: Filters = { region: '', rank_tier: 'Any', role: '', gender: '', age_min: 18, age_max: 99 };
-    if (typeof window === 'undefined') return defaults;
+
+  const DEFAULT_FILTERS: Filters = { region: '', rank_tier: 'Any', role: '', gender: '', age_min: 18, age_max: 99 };
+
+  const savedFilters = (): Filters => {
+    if (typeof window === 'undefined') return DEFAULT_FILTERS;
     try {
       const raw = localStorage.getItem('browse_filters');
-      if (raw) return { ...defaults, ...JSON.parse(raw) as Filters };
+      if (raw) return { ...DEFAULT_FILTERS, ...JSON.parse(raw) as Filters };
     } catch {}
-    return defaults;
-  });
+    return DEFAULT_FILTERS;
+  };
+
+  // pendingFilters = what's currently selected in the UI (not yet applied)
+  // appliedFilters = what the backend is actually queried with
+  const [pendingFilters, setPendingFilters] = useState<Filters>(savedFilters);
+  const [appliedFilters, setAppliedFilters] = useState<Filters>(savedFilters);
   const [seenProfileIds] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return new Set<string>();
     try {
@@ -149,21 +156,21 @@ export default function MatchPage() {
     }
   }, [api, seenProfileIds, persistSeen]);
 
-  // Persist filters to localStorage whenever they change
+  // Persist applied filters to localStorage
   useEffect(() => {
-    try { localStorage.setItem('browse_filters', JSON.stringify(filters)); } catch {}
-  }, [filters]);
+    try { localStorage.setItem('browse_filters', JSON.stringify(appliedFilters)); } catch {}
+  }, [appliedFilters]);
 
   useEffect(() => {
-    // Clear seen set when filters change so users see fresh results per filter combo
+    // Re-fetch when applied filters change
     seenProfileIds.clear();
     try { sessionStorage.removeItem('browse_seen'); } catch {}
     setPage(0);
-    fetchProfiles(0, filters);
+    fetchProfiles(0, appliedFilters);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters, fetchProfiles]);
+  }, [appliedFilters, fetchProfiles]);
 
-  // Load more when approaching the end (avoid firing on every small list on first paint)
+  // Load more when approaching the end
   useEffect(() => {
     const nearEnd =
       profiles.length >= 4
@@ -172,9 +179,22 @@ export default function MatchPage() {
     if (profiles.length > 0 && nearEnd && hasMore && !loading) {
       const nextPage = page + 1;
       setPage(nextPage);
-      fetchProfiles(nextPage, filters);
+      fetchProfiles(nextPage, appliedFilters);
     }
-  }, [currentIndex, profiles.length, hasMore, loading, page, filters, fetchProfiles]);
+  }, [currentIndex, profiles.length, hasMore, loading, page, appliedFilters, fetchProfiles]);
+
+  const handleApplyFilters = () => {
+    setAppliedFilters(pendingFilters);
+    setShowFilters(false);
+  };
+
+  const handleClearFilters = () => {
+    setPendingFilters(DEFAULT_FILTERS);
+    setAppliedFilters(DEFAULT_FILTERS);
+  };
+
+  const pendingActive = JSON.stringify(pendingFilters) !== JSON.stringify(DEFAULT_FILTERS);
+  const appliedActive = JSON.stringify(appliedFilters) !== JSON.stringify(DEFAULT_FILTERS);
 
   const advance = () => {
     setCurrentIndex(prev => prev + 1);
@@ -254,7 +274,7 @@ export default function MatchPage() {
               seenProfileIds.clear();
               try { sessionStorage.removeItem('browse_seen'); } catch {}
               setPage(0);
-              fetchProfiles(0, filters);
+              fetchProfiles(0, appliedFilters);
             }}
             className="btn-ghost p-2"
             title="Refresh"
@@ -263,10 +283,13 @@ export default function MatchPage() {
           </button>
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-2 btn-ghost ${showFilters ? 'border-[#FF4655] text-[#FF4655]' : ''}`}
+            className={`flex items-center gap-2 btn-ghost relative ${showFilters || appliedActive ? 'border-[#FF4655] text-[#FF4655]' : ''}`}
           >
             <SlidersHorizontal size={14} />
             FILTERS
+            {appliedActive && (
+              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#FF4655]" />
+            )}
           </button>
         </div>
       </div>
@@ -301,57 +324,60 @@ export default function MatchPage() {
 
       {/* Filters panel */}
       {showFilters && (
-        <div className="bg-[#171A22] border border-[#252830] p-4 mb-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div>
-            <label className="label block mb-2">REGION</label>
-            <select
-              className="w-full bg-[#11141B] border border-[#252830] px-2 py-1.5 text-xs font-mono text-[#E8EAF0] focus:border-[#FF4655] outline-none"
-              value={filters.region}
-              onChange={e => setFilters(prev => ({ ...prev, region: e.target.value }))}
-            >
-              <option value="">ANY</option>
-              {REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
-            </select>
+        <div className="bg-[#171A22] border border-[#252830] p-4 mb-6 space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div>
+              <label className="label block mb-2">REGION</label>
+              <select
+                className="w-full bg-[#11141B] border border-[#252830] px-2 py-1.5 text-xs font-mono text-[#E8EAF0] focus:border-[#FF4655] outline-none"
+                value={pendingFilters.region}
+                onChange={e => setPendingFilters(prev => ({ ...prev, region: e.target.value }))}
+              >
+                <option value="">ANY</option>
+                {REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label block mb-2">RANK TIER</label>
+              <select
+                className="w-full bg-[#11141B] border border-[#252830] px-2 py-1.5 text-xs font-mono text-[#E8EAF0] focus:border-[#FF4655] outline-none"
+                value={pendingFilters.rank_tier}
+                onChange={e => setPendingFilters(prev => ({ ...prev, rank_tier: e.target.value }))}
+              >
+                {RANKS_TIERS.map(r => <option key={r} value={r}>{r.toUpperCase()}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label block mb-2">ROLE</label>
+              <select
+                className="w-full bg-[#11141B] border border-[#252830] px-2 py-1.5 text-xs font-mono text-[#E8EAF0] focus:border-[#FF4655] outline-none"
+                value={pendingFilters.role}
+                onChange={e => setPendingFilters(prev => ({ ...prev, role: e.target.value }))}
+              >
+                <option value="">ANY</option>
+                {ROLES.map(r => <option key={r} value={r}>{r.toUpperCase()}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label block mb-2">GENDER</label>
+              <select
+                className="w-full bg-[#11141B] border border-[#252830] px-2 py-1.5 text-xs font-mono text-[#E8EAF0] focus:border-[#FF4655] outline-none"
+                value={pendingFilters.gender}
+                onChange={e => setPendingFilters(prev => ({ ...prev, gender: e.target.value }))}
+              >
+                <option value="">ANY</option>
+                <option value="Male">MALE</option>
+                <option value="Female">FEMALE</option>
+                <option value="Other">OTHER</option>
+              </select>
+            </div>
           </div>
+
           <div>
-            <label className="label block mb-2">RANK TIER</label>
-            <select
-              className="w-full bg-[#11141B] border border-[#252830] px-2 py-1.5 text-xs font-mono text-[#E8EAF0] focus:border-[#FF4655] outline-none"
-              value={filters.rank_tier}
-              onChange={e => setFilters(prev => ({ ...prev, rank_tier: e.target.value }))}
-            >
-              {RANKS_TIERS.map(r => <option key={r} value={r}>{r.toUpperCase()}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="label block mb-2">ROLE</label>
-            <select
-              className="w-full bg-[#11141B] border border-[#252830] px-2 py-1.5 text-xs font-mono text-[#E8EAF0] focus:border-[#FF4655] outline-none"
-              value={filters.role}
-              onChange={e => setFilters(prev => ({ ...prev, role: e.target.value }))}
-            >
-              <option value="">ANY</option>
-              {ROLES.map(r => <option key={r} value={r}>{r.toUpperCase()}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="label block mb-2">GENDER</label>
-            <select
-              className="w-full bg-[#11141B] border border-[#252830] px-2 py-1.5 text-xs font-mono text-[#E8EAF0] focus:border-[#FF4655] outline-none"
-              value={filters.gender}
-              onChange={e => setFilters(prev => ({ ...prev, gender: e.target.value }))}
-            >
-              <option value="">ANY</option>
-              <option value="Male">MALE</option>
-              <option value="Female">FEMALE</option>
-              <option value="Other">OTHER</option>
-            </select>
-          </div>
-          <div className="col-span-2 sm:col-span-4">
             <label className="label block mb-2">
               AGE RANGE
-              {(filters.age_min > 18 || filters.age_max < 99) ? (
-                <span className="text-[#FF4655] ml-2">{filters.age_min} – {filters.age_max}</span>
+              {(pendingFilters.age_min > 18 || pendingFilters.age_max < 99) ? (
+                <span className="text-[#FF4655] ml-2">{pendingFilters.age_min} – {pendingFilters.age_max}</span>
               ) : (
                 <span className="text-[#525566] ml-2">ANY (18 – 99)</span>
               )}
@@ -364,28 +390,45 @@ export default function MatchPage() {
                   <input
                     type="range"
                     min={18}
-                    max={filters.age_max}
-                    value={filters.age_min}
-                    onChange={e => setFilters(prev => ({ ...prev, age_min: Number(e.target.value) }))}
+                    max={pendingFilters.age_max}
+                    value={pendingFilters.age_min}
+                    onChange={e => setPendingFilters(prev => ({ ...prev, age_min: Number(e.target.value) }))}
                     className="flex-1 accent-[#FF4655] h-1"
                   />
-                  <span className="font-mono text-[10px] text-[#E8EAF0] w-5 text-right">{filters.age_min}</span>
+                  <span className="font-mono text-[10px] text-[#E8EAF0] w-5 text-right">{pendingFilters.age_min}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-[10px] text-[#8B8FA8] w-6">MAX</span>
                   <input
                     type="range"
-                    min={filters.age_min}
+                    min={pendingFilters.age_min}
                     max={99}
-                    value={filters.age_max}
-                    onChange={e => setFilters(prev => ({ ...prev, age_max: Number(e.target.value) }))}
+                    value={pendingFilters.age_max}
+                    onChange={e => setPendingFilters(prev => ({ ...prev, age_max: Number(e.target.value) }))}
                     className="flex-1 accent-[#FF4655] h-1"
                   />
-                  <span className="font-mono text-[10px] text-[#E8EAF0] w-5 text-right">{filters.age_max}</span>
+                  <span className="font-mono text-[10px] text-[#E8EAF0] w-5 text-right">{pendingFilters.age_max}</span>
                 </div>
               </div>
               <span className="font-mono text-[10px] text-[#525566] flex-shrink-0">99</span>
             </div>
+          </div>
+
+          {/* Apply / Clear */}
+          <div className="flex gap-2 pt-1 border-t border-[#252830]">
+            <button
+              onClick={handleClearFilters}
+              className="px-4 py-2 text-xs font-bold uppercase font-mono border border-[#252830] text-[#525566] hover:border-[#525566] hover:text-[#E8EAF0] transition-colors"
+            >
+              CLEAR
+            </button>
+            <button
+              onClick={handleApplyFilters}
+              className="flex-1 py-2 text-xs font-bold uppercase font-mono bg-[#FF4655] text-white hover:bg-[#FF5F6D] transition-colors"
+              style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}
+            >
+              APPLY FILTERS
+            </button>
           </div>
         </div>
       )}
@@ -452,7 +495,7 @@ export default function MatchPage() {
               seenProfileIds.clear();
               try { sessionStorage.removeItem('browse_seen'); } catch {}
               setPage(0);
-              fetchProfiles(0, filters);
+              fetchProfiles(0, appliedFilters);
             }}
             className="mt-6 btn-ghost text-xs"
           >
@@ -460,12 +503,15 @@ export default function MatchPage() {
           </button>
         </div>
       ) : currentProfile ? (
+        /* ProfileBorder must NOT have clipPath — clipPath clips box-shadow from animations.
+           The border glows on the outer wrapper; the inner div gets the corner-clip shape. */
         <ProfileBorder
           border={currentProfile.profile_border ?? 'none'}
           color={currentProfile.profile_border_color ?? currentProfile.profile_accent_color ?? '#FF4655'}
-          className="bg-[#171A22] border border-[#252830]"
-          style={{ clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%)' }}
         >
+          <div className="bg-[#171A22] border border-[#252830]"
+            style={{ clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%)' }}
+          >
 
           {/* Avatar */}
           <div className="relative w-full bg-[#11141B] overflow-hidden"
@@ -615,6 +661,7 @@ export default function MatchPage() {
             <p className="text-center font-mono text-[9px] text-[#00E5FF]/30 mt-3">
               {currentIndex + 1} / {profiles.length}{hasMore ? '+' : ''}
             </p>
+          </div>
           </div>
         </ProfileBorder>
       ) : null}

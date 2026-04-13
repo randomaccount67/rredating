@@ -12,6 +12,7 @@ interface ProfileModalProps {
   onSendRequest: (id: string) => void;
   onPass: (id: string) => void;
   requestStatus?: 'pending' | 'matched' | 'declined' | null;
+  viewOnly?: boolean;
 }
 
 function RankBadge({ rank, label }: { rank: string; label: string }) {
@@ -30,7 +31,7 @@ const RANK_ACCENT: Record<string, string> = {
   immortal: '#FF5070', radiant: '#FFD700',
 };
 
-export default function ProfileModal({ profile, onClose, onSendRequest, onPass, requestStatus }: ProfileModalProps) {
+export default function ProfileModal({ profile, onClose, onSendRequest, onPass, requestStatus, viewOnly = false }: ProfileModalProps) {
   const displayName = profile.riot_id
     ? `${profile.riot_id}#${profile.riot_tag}`
     : 'UNKNOWN#0000';
@@ -197,7 +198,11 @@ export default function ProfileModal({ profile, onClose, onSendRequest, onPass, 
 
         {/* Actions */}
         <div className="p-4 border-t-2 border-[#2F2B24] flex gap-2 bg-[#131009]">
-          {requestStatus === 'matched' ? (
+          {viewOnly ? (
+            <div className="flex-1 text-center py-3 text-xs font-mono text-[#4A4440] border-2 border-[#2F2B24] uppercase tracking-widest">
+              YOUR PROFILE PREVIEW
+            </div>
+          ) : requestStatus === 'matched' ? (
             <div className="flex-1 text-center py-3 text-sm font-mono text-[#40D060] border-2 border-[#40D060]/20 bg-[#40D060]/5">
               ✓ MATCHED — GO TO INBOX
             </div>
