@@ -3,6 +3,7 @@ import { AppError, badRequest, notFound } from '../utils/errors.js';
 import { BROWSE_COLUMNS } from '../utils/columns.js';
 import { uuidSchema } from '../utils/validation.js';
 import { securityLog } from '../utils/logger.js';
+import { broadcast } from '../utils/broadcast.js';
 import type { Profile } from '../types/index.js';
 
 /**
@@ -213,13 +214,23 @@ export async function sendRequest(profile: Profile, toProfileId: string) {
       { user_id: toProfileId, type: 'matched', related_user: profile.id },
     ]);
 
+    // Broadcast matched notification and inbox refresh to both users
+    await Promise.all([
+      broadcast(`notification:${profile.id}`, 'new_notification', { type: 'matched', related_user: toProfileId }),
+      broadcast(`notification:${toProfileId}`, 'new_notification', { type: 'matched', related_user: profile.id }),
+      broadcast(`inbox:${profile.id}`, 'new_message', { conversation_id: convId }),
+      broadcast(`inbox:${toProfileId}`, 'new_message', { conversation_id: convId }),
+    ]);
+
     return { status: 'matched', conversation_id: convId };
   }
 
   // Insert new pending request
-  const { error } = await db
+  const { data: newRequest, error } = await db
     .from('match_requests')
-    .insert({ from_user: profile.id, to_user: toProfileId, status: 'pending' });
+    .insert({ from_user: profile.id, to_user: toProfileId, status: 'pending' })
+    .select()
+    .single();
 
   if (error?.code === '23505') return { status: 'pending' };
   if (error) throw new AppError(500, error.message);
@@ -230,6 +241,15 @@ export async function sendRequest(profile: Profile, toProfileId: string) {
     type: 'match_request',
     related_user: profile.id,
   });
+
+  // Broadcast new request and notification to recipient
+  await Promise.all([
+    broadcast(`match_requests:${toProfileId}`, 'new_request', {
+      request: newRequest,
+      sender: { id: profile.id, riot_id: profile.riot_id, riot_tag: profile.riot_tag, avatar_url: profile.avatar_url },
+    }),
+    broadcast(`notification:${toProfileId}`, 'new_notification', { type: 'match_request', related_user: profile.id }),
+  ]);
 
   return { status: 'pending' };
 }
@@ -279,6 +299,14 @@ export async function respondToRequest(profile: Profile, requestId: string, acti
   await db.from('notifications').insert([
     { user_id: request.from_user, type: 'matched', related_user: request.to_user },
     { user_id: request.to_user, type: 'matched', related_user: request.from_user },
+  ]);
+
+  // Broadcast matched notification and inbox refresh to both users
+  await Promise.all([
+    broadcast(`notification:${request.from_user}`, 'new_notification', { type: 'matched', related_user: request.to_user }),
+    broadcast(`notification:${request.to_user}`, 'new_notification', { type: 'matched', related_user: request.from_user }),
+    broadcast(`inbox:${request.from_user}`, 'new_message', { conversation_id: convId }),
+    broadcast(`inbox:${request.to_user}`, 'new_message', { conversation_id: convId }),
   ]);
 
   return { status: 'matched', conversation_id: convId };

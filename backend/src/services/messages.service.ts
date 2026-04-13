@@ -2,6 +2,7 @@ import { db } from './db.js';
 import { cleanProfanity } from '../utils/helpers.js';
 import { badRequest, notFound, forbidden } from '../utils/errors.js';
 import { PROFILE_PUBLIC_COLUMNS } from '../utils/columns.js';
+import { broadcast } from '../utils/broadcast.js';
 import type { Profile } from '../types/index.js';
 
 // ─── Messages ──────────────────────────────────────────────────
@@ -76,28 +77,16 @@ export async function sendMessage(profile: Profile, conversationId: string, cont
 
   if (error) throw new Error(error.message);
 
-  // Broadcast to realtime channel so recipient gets instant update
-  try {
-    const broadcastUrl = `${process.env.SUPABASE_URL}/realtime/v1/api/broadcast`;
-    const response = await fetch(broadcastUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-        'apikey': process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
-      },
-      body: JSON.stringify({
-        messages: [{
-          topic: `conversation:${conversationId}`,
-          event: 'new_message',
-          payload: { message },
-        }],
-      }),
-    });
-    console.log('[broadcast] status:', response.status, 'conversation:', conversationId);
-  } catch (err) {
-    console.error('[broadcast] error:', err);
-  }
+  // Broadcast new message to the conversation channel (recipient sees it instantly in chat)
+  await broadcast(`conversation:${conversationId}`, 'new_message', { message });
+  console.log('[broadcast] conversation:', conversationId);
+
+  // Broadcast to recipient's inbox channel so the conversation list refreshes
+  await broadcast(`inbox:${otherId}`, 'new_message', {
+    conversation_id: conversationId,
+    sender_id: profile.id,
+    preview: (message as Record<string, unknown>).content,
+  });
 
   // Check if other user is actively viewing (skip notification if so)
   const { data: viewer } = await db
@@ -112,6 +101,11 @@ export async function sendMessage(profile: Profile, conversationId: string, cont
   if (!isViewing) {
     await db.from('notifications').insert({
       user_id: otherId,
+      type: 'new_message',
+      related_user: profile.id,
+    });
+    // Broadcast to recipient's notification channel so the alerts badge updates instantly
+    await broadcast(`notification:${otherId}`, 'new_notification', {
       type: 'new_message',
       related_user: profile.id,
     });

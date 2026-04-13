@@ -74,18 +74,13 @@ export default function Navbar() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
-  // Realtime subscription — filtered by the user's own profile ID so only their rows trigger
+  // Realtime: backend broadcasts to notification:<myProfileId> after every notification insert
   useEffect(() => {
     if (!myProfileId) return;
     const supabase = createClient();
     const channel = supabase
-      .channel(`navbar-notifs-${myProfileId}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'notifications',
-        filter: `user_id=eq.${myProfileId}`,
-      }, fetchUnread)
+      .channel(`notification:${myProfileId}`)
+      .on('broadcast', { event: 'new_notification' }, fetchUnread)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   // eslint-disable-next-line react-hooks/exhaustive-deps

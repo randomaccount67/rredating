@@ -71,42 +71,21 @@ export default function InboxPage() {
     fetchInbox(true);
   }, [fetchInbox]);
 
-  // Realtime: new match requests coming in
+  // Realtime: backend broadcasts to these channels after inserts — no RLS stripping
   useEffect(() => {
     if (!myProfileId) return;
     const supabase = createClient();
 
+    // New duo requests arriving
     const reqChannel = supabase
-      .channel(`inbox-requests-${myProfileId}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'match_requests',
-        filter: `to_user=eq.${myProfileId}`,
-      }, () => {
-        fetchInbox();
-      })
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'match_requests',
-        filter: `to_user=eq.${myProfileId}`,
-      }, () => {
-        fetchInbox();
-      })
+      .channel(`match_requests:${myProfileId}`)
+      .on('broadcast', { event: 'new_request' }, () => fetchInbox())
       .subscribe();
 
-    // Realtime: new messages arrive — refresh inbox to update last_message + unread count
+    // New messages or mutual matches — refreshes conversation list + unread counts
     const msgChannel = supabase
-      .channel(`inbox-messages-${myProfileId}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'notifications',
-        filter: `user_id=eq.${myProfileId}`,
-      }, () => {
-        fetchInbox();
-      })
+      .channel(`inbox:${myProfileId}`)
+      .on('broadcast', { event: 'new_message' }, () => fetchInbox())
       .subscribe();
 
     return () => {
