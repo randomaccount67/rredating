@@ -1,8 +1,10 @@
 'use client';
 import { X, Target, Music, Calendar } from 'lucide-react';
-import VerifiedBadge from '@/components/shared/VerifiedBadge';
 import { Profile, getRankTier } from '@/types';
 import OnlineIndicator from '@/components/shared/OnlineIndicator';
+import BadgesRow from '@/components/shared/BadgesRow';
+import UsernameDisplay from '@/components/shared/UsernameDisplay';
+import ProfileBanner from '@/components/shared/ProfileBanner';
 
 interface ProfileModalProps {
   profile: Profile;
@@ -36,17 +38,22 @@ export default function ProfileModal({ profile, onClose, onSendRequest, onPass, 
   const rankColor = profile.current_rank
     ? (RANK_ACCENT[getRankTier(profile.current_rank)] ?? '#FF4655')
     : '#FF4655';
+  const accentColor = profile.profile_accent_color ?? rankColor;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/88 backdrop-blur-sm" />
       <div
         className="relative w-full max-w-lg bg-[#1B1814] border-2 border-[#2F2B24] overflow-hidden max-h-[92vh] overflow-y-auto"
-        style={{ borderTop: `3px solid ${rankColor}`, boxShadow: '8px 8px 0px rgba(0,0,0,0.6)' }}
+        style={{ borderTop: `3px solid ${accentColor}`, boxShadow: '8px 8px 0px rgba(0,0,0,0.6)' }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex gap-0">
+        <div className="flex gap-0 relative overflow-hidden">
+          <ProfileBanner
+            banner={profile.profile_banner ?? 'none'}
+            accentColor={accentColor}
+          />
           {/* Avatar column */}
           <div className="relative w-28 flex-shrink-0 bg-[#131009]" style={{ minHeight: '7rem' }}>
             {profile.avatar_url ? (
@@ -70,14 +77,22 @@ export default function ProfileModal({ profile, onClose, onSendRequest, onPass, 
                 </div>
                 <div className="flex items-center gap-2">
                   <h2
-                    className="font-black text-xl uppercase text-[#F2EDE4] truncate leading-tight"
+                    className="font-black text-xl uppercase truncate leading-tight"
                     style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
                   >
-                    {displayName}
+                    <UsernameDisplay
+                      riotId={profile.riot_id ?? null}
+                      riotTag={profile.riot_tag ?? null}
+                      effect={profile.username_effect ?? 'none'}
+                      accentColor={accentColor}
+                      className="text-[#F2EDE4]"
+                    />
                   </h2>
-                  {profile.is_verified && (
-                    <div title="Verified"><VerifiedBadge size={16} /></div>
-                  )}
+                  <BadgesRow
+                    isVerified={profile.is_verified}
+                    isSupporter={profile.is_supporter}
+                    size={15}
+                  />
                 </div>
                 <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                   {profile.region && (
@@ -107,7 +122,7 @@ export default function ProfileModal({ profile, onClose, onSendRequest, onPass, 
         {/* Ranks */}
         <div className="px-5 py-4 border-t-2 border-[#2F2B24]">
           <div className="flex items-center gap-2 mb-3">
-            <div className="w-4 h-[2px]" style={{ background: rankColor }} />
+            <div className="w-4 h-[2px]" style={{ background: accentColor }} />
             <span className="font-mono text-[9px] tracking-widest uppercase text-[#4A4440]">COMPETITIVE</span>
           </div>
           <div className="flex items-start gap-5 flex-wrap">

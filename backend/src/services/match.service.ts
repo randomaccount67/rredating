@@ -128,7 +128,12 @@ export async function browse(profile: Profile, query: Record<string, string>) {
   const limit = Math.min(parseInt(query.limit || '12', 10), 24);
   const offset = page * limit;
 
-  const candidates = filterBrowseCandidates(await loadBrowseCandidates(profile), query);
+  const rawCandidates = filterBrowseCandidates(await loadBrowseCandidates(profile), query);
+  // Supporters appear first — their perk of priority placement
+  const candidates = [
+    ...rawCandidates.filter(p => p.is_supporter),
+    ...rawCandidates.filter(p => !p.is_supporter),
+  ];
   // Use non-overlapping windows so the same profile never appears on two different pages.
   const windowRows = candidates.slice(offset, offset + limit);
 

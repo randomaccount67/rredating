@@ -35,6 +35,9 @@ app.use(helmet({
 
 app.use(globalLimiter);
 app.use(corsMiddleware);
+// Raw body for Stripe webhook — MUST be before express.json() so the Buffer is preserved
+// for signature verification. express.json() will skip paths where body is already set.
+app.use('/api/subscription/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '1mb' }));
 
 // Prevent Cloudflare (and any other proxy) from caching API responses

@@ -43,6 +43,19 @@ export interface Profile {
   is_banned: boolean;
   is_verified: boolean;
   age: number | null;
+  // Supporter subscription
+  is_supporter: boolean;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  supporter_since: string | null;
+  // Cosmetics
+  profile_border: string;
+  profile_border_color: string;
+  profile_accent_color: string;
+  profile_banner: string;
+  username_effect: string;
+  profile_theme: string;
+  badges: string[];
 }
 
 export interface Report {

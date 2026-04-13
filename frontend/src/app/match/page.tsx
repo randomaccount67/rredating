@@ -1,10 +1,12 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { SlidersHorizontal, RefreshCw, X, Heart, Flag, Undo2 } from 'lucide-react';
-import VerifiedBadge from '@/components/shared/VerifiedBadge';
+import { SlidersHorizontal, RefreshCw, X, Heart, Flag, Undo2, Crown } from 'lucide-react';
 import { Profile, REGIONS, ROLES, getRankTier } from '@/types';
 import ProfileModal from '@/components/profile/ProfileModal';
 import ReportModal from '@/components/shared/ReportModal';
+import ProfileBorder from '@/components/shared/ProfileBorder';
+import BadgesRow from '@/components/shared/BadgesRow';
+import UsernameDisplay from '@/components/shared/UsernameDisplay';
 import { useApi } from '@/lib/api';
 import Link from 'next/link';
 
@@ -58,6 +60,8 @@ export default function MatchPage() {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [apiMisconfig, setApiMisconfig] = useState(false);
+  const [myIsSupporter, setMyIsSupporter] = useState(false);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
   const [browseMeta, setBrowseMeta] = useState<{ poolSize: number | null; filtersActive: boolean | null }>({
     poolSize: null,
     filtersActive: null,
@@ -71,6 +75,13 @@ export default function MatchPage() {
       setApiMisconfig(true);
     }
   }, []);
+
+  useEffect(() => {
+    api('/api/subscription/status')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setMyIsSupporter(d.is_supporter ?? false); })
+      .catch(() => {});
+  }, [api]);
 
   const persistSeen = useCallback(() => {
     try {
@@ -379,6 +390,27 @@ export default function MatchPage() {
         </div>
       )}
 
+      {/* Supporter banner for non-supporters */}
+      {!myIsSupporter && !bannerDismissed && (
+        <div className="mb-4 p-3 border border-yellow-600/30 bg-yellow-950/25 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <Crown size={14} className="text-yellow-500 flex-shrink-0" />
+            <div className="min-w-0">
+              <span className="text-yellow-400 font-bold text-xs uppercase font-mono tracking-wider">SUPPORTER PERKS</span>
+              <p className="text-yellow-200/50 text-[10px] mt-0.5 font-mono">Priority placement · 5 agents · animated borders &amp; more — $5/mo</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Link href="/profile" className="text-[10px] font-mono text-yellow-400 hover:text-yellow-300 border border-yellow-600/40 px-2 py-1 transition-colors">
+              UPGRADE
+            </Link>
+            <button onClick={() => setBannerDismissed(true)} className="text-yellow-700 hover:text-yellow-500 transition-colors">
+              <X size={13} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Card area */}
       {loading && profiles.length === 0 ? (
         <div className="bg-[#171A22] border border-[#252830] h-[480px] animate-pulse"
@@ -428,8 +460,12 @@ export default function MatchPage() {
           </button>
         </div>
       ) : currentProfile ? (
-        <div className="bg-[#171A22] border border-[#252830]"
-          style={{ clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%)' }}>
+        <ProfileBorder
+          border={currentProfile.profile_border ?? 'none'}
+          color={currentProfile.profile_border_color ?? currentProfile.profile_accent_color ?? '#FF4655'}
+          className="bg-[#171A22] border border-[#252830]"
+          style={{ clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%)' }}
+        >
 
           {/* Avatar */}
           <div className="relative w-full bg-[#11141B] overflow-hidden"
@@ -461,28 +497,39 @@ export default function MatchPage() {
             <div className="flex items-start justify-between mb-3">
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="font-extrabold text-2xl uppercase text-[#E8EAF0]"
-                    style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
-                    {currentProfile.riot_id ?? 'UNKNOWN'}
-                    <span className="text-[#525566] font-normal text-lg ml-1">#{currentProfile.riot_tag}</span>
+                  <h2 className="font-extrabold text-2xl uppercase" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                    <UsernameDisplay
+                      riotId={currentProfile.riot_id ?? null}
+                      riotTag={currentProfile.riot_tag ?? null}
+                      effect={currentProfile.username_effect ?? 'none'}
+                      accentColor={currentProfile.profile_accent_color ?? '#FF4655'}
+                      className="text-[#E8EAF0]"
+                    />
                   </h2>
-                  {currentProfile.is_verified && (
-                    <div title="Verified"><VerifiedBadge size={20} /></div>
-                  )}
+                  <BadgesRow
+                    isVerified={currentProfile.is_verified}
+                    isSupporter={currentProfile.is_supporter}
+                    size={18}
+                  />
                 </div>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  {currentProfile.current_rank && (
-                    <span className="font-mono text-xs px-2 py-0.5 border"
-                      style={{
-                        color: RANK_COLORS[getRankTier(currentProfile.current_rank)] ?? '#8B8FA8',
-                        borderColor: RANK_COLORS[getRankTier(currentProfile.current_rank)] ?? '#2A2D35',
-                        backgroundColor: `${RANK_COLORS[getRankTier(currentProfile.current_rank)] ?? '#8B8FA8'}15`,
-                      }}>
-                      {currentProfile.current_rank}
-                    </span>
-                  )}
+                  {currentProfile.current_rank && (() => {
+                    const accent = currentProfile.profile_accent_color;
+                    const rankC = RANK_COLORS[getRankTier(currentProfile.current_rank)] ?? '#8B8FA8';
+                    const c = accent ?? rankC;
+                    return (
+                      <span className="font-mono text-xs px-2 py-0.5 border"
+                        style={{ color: c, borderColor: c, backgroundColor: `${c}15` }}>
+                        {currentProfile.current_rank}
+                      </span>
+                    );
+                  })()}
                   {currentProfile.role && (
-                    <span className="font-mono text-xs text-[#8B8FA8] border border-[#252830] px-2 py-0.5">
+                    <span className="font-mono text-xs border px-2 py-0.5"
+                      style={{
+                        color: currentProfile.profile_accent_color ?? '#8B8FA8',
+                        borderColor: currentProfile.profile_accent_color ? `${currentProfile.profile_accent_color}60` : '#252830',
+                      }}>
                       {currentProfile.role}
                     </span>
                   )}
@@ -569,7 +616,7 @@ export default function MatchPage() {
               {currentIndex + 1} / {profiles.length}{hasMore ? '+' : ''}
             </p>
           </div>
-        </div>
+        </ProfileBorder>
       ) : null}
 
       {/* Report modal */}

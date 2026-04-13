@@ -1,72 +1,42 @@
 'use client';
 import { useApi } from '@/lib/api';
-import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import { Upload, Save, Check, AlertTriangle, UserX } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Upload, Save, Check, AlertTriangle, UserX, Crown, Lock, Palette, ExternalLink, X } from 'lucide-react';
 import { RANKS, REGIONS, ROLES, MUSIC_TAGS, AGENTS, Profile } from '@/types';
 import VerifiedBadge from '@/components/shared/VerifiedBadge';
+import SupporterBadge from '@/components/shared/SupporterBadge';
+import { Suspense } from 'react';
 
-/**
- * Resize to ≤400×400 and compress to WebP ≤200 KB using the Canvas API.
- * Tries decreasing quality levels until the size target is met.
- * Falls back to the original file if the browser doesn't support WebP or
- * if canvas operations fail for any reason.
- */
 async function compressImage(file: File): Promise<File> {
   return new Promise((resolve) => {
     const img = new Image();
     const objectUrl = URL.createObjectURL(file);
-
     img.onload = () => {
       URL.revokeObjectURL(objectUrl);
-
       const MAX = 400;
       let { width, height } = img;
       if (width > MAX || height > MAX) {
-        if (width >= height) {
-          height = Math.round((height * MAX) / width);
-          width = MAX;
-        } else {
-          width = Math.round((width * MAX) / height);
-          height = MAX;
-        }
+        if (width >= height) { height = Math.round((height * MAX) / width); width = MAX; }
+        else { width = Math.round((width * MAX) / height); height = MAX; }
       }
-
       const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
+      canvas.width = width; canvas.height = height;
       const ctx = canvas.getContext('2d');
       if (!ctx) { resolve(file); return; }
       ctx.drawImage(img, 0, 0, width, height);
-
-      const TARGET_BYTES = 200 * 1024; // 200 KB
       const qualities = [0.85, 0.75, 0.65, 0.55, 0.45, 0.35];
-
       const tryQuality = (idx: number) => {
-        const quality = qualities[idx] ?? 0.35;
-        canvas.toBlob(
-          (blob) => {
-            if (!blob) { resolve(file); return; }
-            // Accept if under target OR we've exhausted quality options
-            if (blob.size <= TARGET_BYTES || idx >= qualities.length - 1) {
-              resolve(new File([blob], 'avatar.webp', { type: 'image/webp' }));
-            } else {
-              tryQuality(idx + 1);
-            }
-          },
-          'image/webp',
-          quality,
-        );
+        canvas.toBlob((blob) => {
+          if (!blob) { resolve(file); return; }
+          if (blob.size <= 200 * 1024 || idx >= qualities.length - 1) {
+            resolve(new File([blob], 'avatar.webp', { type: 'image/webp' }));
+          } else { tryQuality(idx + 1); }
+        }, 'image/webp', qualities[idx] ?? 0.35);
       };
-
       tryQuality(0);
     };
-
-    img.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      resolve(file); // fallback to original on decode error
-    };
-
+    img.onerror = () => { URL.revokeObjectURL(objectUrl); resolve(file); };
     img.src = objectUrl;
   });
 }
@@ -77,10 +47,53 @@ interface BlockedUser {
   profiles: { id: string; riot_id: string | null; riot_tag: string | null; avatar_url: string | null } | null;
 }
 
-export default function ProfilePage() {
-  const api = useApi();
+interface SubStatus {
+  is_supporter: boolean;
+  supporter_since?: string | null;
+  subscription_status?: string;
+  current_period_end?: string;
+}
 
+const BORDERS = [
+  { id: 'none', label: 'NONE' },
+  { id: 'solid', label: 'SOLID' },
+  { id: 'glitch', label: 'GLITCH' },
+  { id: 'fire', label: 'FIRE' },
+  { id: 'neon_pulse', label: 'NEON PULSE' },
+  { id: 'rainbow', label: 'RAINBOW' },
+  { id: 'static', label: 'STATIC' },
+] as const;
+
+const EFFECTS = [
+  { id: 'none', label: 'NONE' },
+  { id: 'gradient', label: 'GRADIENT' },
+  { id: 'glitch', label: 'GLITCH' },
+  { id: 'shimmer', label: 'SHIMMER' },
+  { id: 'neon', label: 'NEON' },
+] as const;
+
+const THEMES = [
+  { id: 'default', label: 'DEFAULT', bg: '#0B0D11', accent: '#FF4655' },
+  { id: 'midnight', label: 'MIDNIGHT', bg: '#050A1A', accent: '#7B9EFF' },
+  { id: 'ember', label: 'EMBER', bg: '#150800', accent: '#FF6B00' },
+  { id: 'toxic', label: 'TOXIC', bg: '#020A02', accent: '#39FF14' },
+  { id: 'phantom', label: 'PHANTOM', bg: '#0D0015', accent: '#BF5FFF' },
+  { id: 'arctic', label: 'ARCTIC', bg: '#020D15', accent: '#00D4FF' },
+] as const;
+
+const BANNERS = [
+  { id: 'none', label: 'NONE' },
+  { id: 'geometric', label: 'GEOMETRIC' },
+  { id: 'particles', label: 'PARTICLES' },
+  { id: 'grid', label: 'GRID' },
+  { id: 'waves', label: 'WAVES' },
+  { id: 'stars', label: 'STARS' },
+] as const;
+
+function ProfilePageInner() {
+  const api = useApi();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -91,6 +104,11 @@ export default function ProfilePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
   const [unblocking, setUnblocking] = useState<string | null>(null);
+  const [subStatus, setSubStatus] = useState<SubStatus | null>(null);
+  const [subscribing, setSubscribing] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [justSubscribed, setJustSubscribed] = useState(false);
 
   const [form, setForm] = useState({
     gender: '', gender_other: '',
@@ -99,8 +117,32 @@ export default function ProfilePage() {
     favorite_artist: '', age: 18,
   });
 
+  const [cosmetics, setCosmetics] = useState({
+    profile_border: 'none',
+    profile_border_color: '#FF4655',
+    profile_accent_color: '#FF4655',
+    profile_banner: 'none',
+    username_effect: 'none',
+    profile_theme: 'default',
+  });
+
   useEffect(() => {
-    async function fetch_profile() {
+    if (searchParams.get('subscribed') === 'true') {
+      setJustSubscribed(true);
+      // Remove the query param from URL
+      router.replace('/profile');
+    }
+  }, [searchParams, router]);
+
+  const fetchSubStatus = useCallback(async () => {
+    try {
+      const res = await api('/api/subscription/status');
+      if (res.ok) setSubStatus(await res.json());
+    } catch {}
+  }, [api]);
+
+  useEffect(() => {
+    async function fetchAll() {
       try {
         const [profileRes, blockedRes] = await Promise.all([
           api('/api/profile'),
@@ -109,23 +151,32 @@ export default function ProfilePage() {
         if (profileRes.ok) {
           const data = await profileRes.json();
           if (data.profile) {
-            setProfile(data.profile);
-            const storedGender = data.profile.gender ?? '';
+            const p: Profile = data.profile;
+            setProfile(p);
+            const storedGender = p.gender ?? '';
             const isCustomGender = storedGender && !['Male', 'Female', 'Other'].includes(storedGender);
             setForm({
               gender: isCustomGender ? 'Other' : storedGender,
               gender_other: isCustomGender ? storedGender : '',
-              riot_id: data.profile.riot_id ?? '',
-              riot_tag: data.profile.riot_tag ?? '',
-              region: data.profile.region ?? '',
-              peak_rank: data.profile.peak_rank ?? '',
-              current_rank: data.profile.current_rank ?? '',
-              role: data.profile.role ?? '',
-              agents: data.profile.agents ?? [],
-              music_tags: data.profile.music_tags ?? [],
-              about: data.profile.about ?? '',
-              favorite_artist: data.profile.favorite_artist ?? '',
-              age: data.profile.age ?? 18,
+              riot_id: p.riot_id ?? '',
+              riot_tag: p.riot_tag ?? '',
+              region: p.region ?? '',
+              peak_rank: p.peak_rank ?? '',
+              current_rank: p.current_rank ?? '',
+              role: p.role ?? '',
+              agents: p.agents ?? [],
+              music_tags: p.music_tags ?? [],
+              about: p.about ?? '',
+              favorite_artist: p.favorite_artist ?? '',
+              age: p.age ?? 18,
+            });
+            setCosmetics({
+              profile_border: p.profile_border ?? 'none',
+              profile_border_color: p.profile_border_color ?? '#FF4655',
+              profile_accent_color: p.profile_accent_color ?? '#FF4655',
+              profile_banner: p.profile_banner ?? 'none',
+              username_effect: p.username_effect ?? 'none',
+              profile_theme: p.profile_theme ?? 'default',
             });
           } else {
             router.replace('/onboarding');
@@ -142,8 +193,9 @@ export default function ProfilePage() {
         setLoading(false);
       }
     }
-    fetch_profile();
-  }, [router]);
+    fetchAll();
+    fetchSubStatus();
+  }, [router, fetchSubStatus]);
 
   const handleUnblock = async (blockedProfileId: string) => {
     setUnblocking(blockedProfileId);
@@ -152,14 +204,9 @@ export default function ProfilePage() {
         method: 'DELETE',
         body: JSON.stringify({ blocked_profile_id: blockedProfileId }),
       });
-      if (res.ok) {
-        setBlockedUsers(prev => prev.filter(b => b.blocked_id !== blockedProfileId));
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setUnblocking(null);
-    }
+      if (res.ok) setBlockedUsers(prev => prev.filter(b => b.blocked_id !== blockedProfileId));
+    } catch {}
+    finally { setUnblocking(null); }
   };
 
   const set = (key: string, value: unknown) => setForm(prev => ({ ...prev, [key]: value }));
@@ -178,11 +225,7 @@ export default function ProfilePage() {
     if (!file) return;
     if (!file.type.startsWith('image/')) { setError('Images only.'); return; }
     if (file.size > 8 * 1024 * 1024) { setError('Max 8MB.'); return; }
-
-    // Show preview immediately from the original while compression runs
     setAvatarPreview(URL.createObjectURL(file));
-
-    // Compress + convert to WebP client-side before upload
     const compressed = await compressImage(file);
     setAvatarFile(compressed);
   };
@@ -196,19 +239,22 @@ export default function ProfilePage() {
         const fd = new FormData();
         fd.append('file', avatarFile);
         const upRes = await api('/api/upload', { method: 'POST', body: fd });
-        if (upRes.ok) {
-          const { url } = await upRes.json();
-          avatar_url = url;
-        }
+        if (upRes.ok) { const { url } = await upRes.json(); avatar_url = url; }
       }
       const resolvedGender = form.gender === 'Other'
         ? (form.gender_other.trim() || 'Other')
         : form.gender || null;
 
-      const res = await api('/api/profile', {
-        method: 'PUT',
-        body: JSON.stringify({ ...form, gender_other: undefined, gender: resolvedGender, avatar_url, age: form.age }),
-      });
+      const body: Record<string, unknown> = {
+        ...form, gender_other: undefined, gender: resolvedGender, avatar_url, age: form.age,
+      };
+
+      // Include cosmetics for supporters
+      if (profile?.is_supporter) {
+        Object.assign(body, cosmetics);
+      }
+
+      const res = await api('/api/profile', { method: 'PUT', body: JSON.stringify(body) });
       if (!res.ok) throw new Error('Save failed');
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -219,6 +265,40 @@ export default function ProfilePage() {
     }
   };
 
+  const handleSubscribe = async () => {
+    setSubscribing(true);
+    try {
+      const res = await api('/api/subscription/create-checkout', { method: 'POST' });
+      if (res.ok) {
+        const { url } = await res.json();
+        if (url) window.location.href = url;
+      }
+    } catch {}
+    finally { setSubscribing(false); }
+  };
+
+  const handleManageSubscription = async () => {
+    try {
+      const res = await api('/api/subscription/portal', { method: 'POST' });
+      if (res.ok) {
+        const { url } = await res.json();
+        if (url) window.location.href = url;
+      }
+    } catch {}
+  };
+
+  const handleCancel = async () => {
+    setCancelling(true);
+    try {
+      const res = await api('/api/subscription/cancel', { method: 'POST' });
+      if (res.ok) {
+        setShowCancelConfirm(false);
+        await fetchSubStatus();
+      }
+    } catch {}
+    finally { setCancelling(false); }
+  };
+
   if (loading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8">
@@ -227,6 +307,9 @@ export default function ProfilePage() {
     );
   }
 
+  const isSupporter = profile?.is_supporter ?? false;
+  const agentMax = isSupporter ? 5 : 3;
+  const bioMax = isSupporter ? 560 : 280;
   const displayAvatar = avatarPreview ?? profile?.avatar_url;
 
   const section = "bg-[#1B1814] border-2 border-[#2F2B24]";
@@ -236,6 +319,7 @@ export default function ProfilePage() {
   const chipOnLime = `${chipBase} border-[#FF4655] bg-[#FF4655]/8 text-[#FF4655]`;
   const chipOnCyan = `${chipBase} border-[#00D4FF] bg-[#00D4FF]/8 text-[#00D4FF]`;
   const chipOnPurple = `${chipBase} border-[#8B6FFF] bg-[#8B6FFF]/8 text-[#8B6FFF]`;
+  const chipOnGold = `${chipBase} border-[#FFE84D] bg-[#FFE84D]/8 text-[#FFE84D]`;
 
   const SectionHeader = ({ color, children }: { color: string; children: React.ReactNode }) => (
     <div className="flex items-center gap-2 mb-4">
@@ -244,11 +328,17 @@ export default function ProfilePage() {
     </div>
   );
 
+  const LockedOption = ({ label }: { label: string }) => (
+    <div className="flex items-center gap-1 px-3 py-1.5 text-xs font-mono border-2 border-[#2F2B24] text-[#3A3530] cursor-not-allowed">
+      <Lock size={9} /> {label}
+    </div>
+  );
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       {/* Page header */}
       <div className="mb-8">
-        <div className="flex items-center gap-3 mb-2">
+        <div className="flex items-center gap-2 mb-2">
           <div className="w-6 h-[2px] bg-[#FF4655]" />
           <span className="font-mono text-[10px] text-[#4A4440] tracking-widest uppercase">MY PROFILE</span>
         </div>
@@ -256,16 +346,282 @@ export default function ProfilePage() {
           <h1 className="font-black text-5xl uppercase text-[#F2EDE4]" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
             EDIT PROFILE
           </h1>
-          {profile?.is_verified && (
-            <div title="Verified">
-              <VerifiedBadge size={28} />
-            </div>
-          )}
+          {profile?.is_verified && <div title="Verified"><VerifiedBadge size={28} /></div>}
+          {isSupporter && <div title="Supporter"><SupporterBadge size={24} /></div>}
         </div>
       </div>
 
+      {/* Just subscribed toast */}
+      {justSubscribed && (
+        <div className="mb-4 flex items-center justify-between p-4 border-2 border-[#FFE84D]/40 bg-[#FFE84D]/5">
+          <div className="flex items-center gap-3">
+            <Crown size={20} className="text-[#FFE84D]" />
+            <div>
+              <p className="font-bold text-sm text-[#FFE84D]" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                WELCOME, SUPPORTER!
+              </p>
+              <p className="text-xs text-[#857A6A]">Your perks and cosmetics are now unlocked.</p>
+            </div>
+          </div>
+          <button onClick={() => setJustSubscribed(false)} className="text-[#4A4440] hover:text-[#F2EDE4]"><X size={14} /></button>
+        </div>
+      )}
+
       <div className="space-y-4">
-        {/* Avatar */}
+        {/* ── Supporter Section ── */}
+        <div className={section} style={{ borderTop: '3px solid #FFE84D' }}>
+          <div className="p-5">
+            <SectionHeader color="#FFE84D">SUPPORTER STATUS</SectionHeader>
+
+            {isSupporter ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-3 bg-[#1A1600] border border-[#FFE84D]/20">
+                  <Crown size={20} className="text-[#FFE84D] flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="font-bold text-sm text-[#FFE84D]" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                      ACTIVE SUPPORTER
+                    </p>
+                    {subStatus?.supporter_since && (
+                      <p className="font-mono text-[10px] text-[#857A6A] mt-0.5">
+                        SINCE {new Date(subStatus.supporter_since).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }).toUpperCase()}
+                      </p>
+                    )}
+                    {subStatus?.current_period_end && (
+                      <p className="font-mono text-[10px] text-[#857A6A]">
+                        RENEWS {new Date(subStatus.current_period_end).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase()}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleManageSubscription}
+                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold uppercase border-2 border-[#FFE84D]/40 text-[#FFE84D] hover:bg-[#FFE84D]/10 transition-all"
+                    style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
+                  >
+                    <ExternalLink size={11} /> MANAGE BILLING
+                  </button>
+                  <button
+                    onClick={() => setShowCancelConfirm(true)}
+                    className="px-3 py-2 text-xs font-bold uppercase border-2 border-[#2F2B24] text-[#525566] hover:border-[#FF4655]/40 hover:text-[#FF4655] transition-all"
+                    style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
+                  >
+                    CANCEL
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-2 text-xs font-mono text-[#857A6A]">
+                  {[
+                    'Animated profile borders', 'Username effects',
+                    'Priority in Browse', '560 char bio (2×)',
+                    '5 agents (vs 3)', 'Profile themes & banners',
+                    'Supporter badge', 'Custom accent colors',
+                  ].map(perk => (
+                    <div key={perk} className="flex items-center gap-1.5">
+                      <Crown size={9} className="text-[#FFE84D] flex-shrink-0" />
+                      {perk}
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={handleSubscribe}
+                  disabled={subscribing}
+                  className="w-full flex items-center justify-center gap-2 py-3 font-black text-sm uppercase tracking-wider bg-[#FFE84D] text-[#0B0D11] hover:bg-[#FFD700] transition-colors disabled:opacity-50"
+                  style={{ fontFamily: 'Barlow Condensed, sans-serif', boxShadow: '4px 4px 0px rgba(255,232,77,0.2)' }}
+                >
+                  <Crown size={16} />
+                  {subscribing ? 'REDIRECTING...' : 'GO SUPPORTER — $5/MONTH'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Cancel confirmation modal */}
+        {showCancelConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+            <div className="bg-[#1B1814] border-2 border-[#FF4655]/40 p-6 max-w-sm w-full">
+              <h3 className="font-bold text-lg uppercase text-[#FF4655] mb-2" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                CANCEL SUBSCRIPTION?
+              </h3>
+              <p className="text-[#857A6A] text-sm mb-6">You&apos;ll lose access to cosmetics and supporter perks immediately.</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowCancelConfirm(false)}
+                  disabled={cancelling}
+                  className="flex-1 py-2.5 text-sm font-bold uppercase border-2 border-[#2F2B24] text-[#525566] hover:border-[#525566] transition-all"
+                  style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
+                >
+                  KEEP IT
+                </button>
+                <button
+                  onClick={handleCancel}
+                  disabled={cancelling}
+                  className="flex-1 py-2.5 text-sm font-bold uppercase bg-[#FF4655] text-white hover:bg-[#FF5F6D] transition-all disabled:opacity-50"
+                  style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
+                >
+                  {cancelling ? 'CANCELLING...' : 'CONFIRM CANCEL'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Customize Profile (Cosmetics) ── */}
+        <div className={section} style={{ borderTop: '3px solid #A78BFA' }}>
+          <div className="p-5">
+            <SectionHeader color="#A78BFA">COSMETICS</SectionHeader>
+            {!isSupporter && (
+              <div className="mb-4 flex items-center gap-2 p-3 bg-[#0D0015] border border-[#A78BFA]/20 text-xs font-mono text-[#A78BFA]/70">
+                <Lock size={11} /> Cosmetics require a Supporter subscription.
+              </div>
+            )}
+
+            {/* Profile Border */}
+            <div className="mb-5">
+              <label className="label block mb-2">PROFILE BORDER</label>
+              <div className="flex flex-wrap gap-2">
+                {BORDERS.map(b => (
+                  isSupporter ? (
+                    <button
+                      key={b.id}
+                      type="button"
+                      onClick={() => setCosmetics(prev => ({ ...prev, profile_border: b.id }))}
+                      className={cosmetics.profile_border === b.id ? chipOnPurple : chipOff}
+                    >
+                      {b.label}
+                    </button>
+                  ) : b.id === 'none' ? (
+                    <button key={b.id} type="button" className={chipOff}>{b.label}</button>
+                  ) : (
+                    <LockedOption key={b.id} label={b.label} />
+                  )
+                ))}
+              </div>
+            </div>
+
+            {/* Username Effect */}
+            <div className="mb-5">
+              <label className="label block mb-2">USERNAME EFFECT</label>
+              <div className="flex flex-wrap gap-2">
+                {EFFECTS.map(e => (
+                  isSupporter ? (
+                    <button
+                      key={e.id}
+                      type="button"
+                      onClick={() => setCosmetics(prev => ({ ...prev, username_effect: e.id }))}
+                      className={cosmetics.username_effect === e.id ? chipOnPurple : chipOff}
+                    >
+                      {e.label}
+                    </button>
+                  ) : e.id === 'none' ? (
+                    <button key={e.id} type="button" className={chipOff}>{e.label}</button>
+                  ) : (
+                    <LockedOption key={e.id} label={e.label} />
+                  )
+                ))}
+              </div>
+            </div>
+
+            {/* Profile Banner */}
+            <div className="mb-5">
+              <label className="label block mb-2">PROFILE BANNER</label>
+              <div className="flex flex-wrap gap-2">
+                {BANNERS.map(b => (
+                  isSupporter ? (
+                    <button
+                      key={b.id}
+                      type="button"
+                      onClick={() => setCosmetics(prev => ({ ...prev, profile_banner: b.id }))}
+                      className={cosmetics.profile_banner === b.id ? chipOnPurple : chipOff}
+                    >
+                      {b.label}
+                    </button>
+                  ) : b.id === 'none' ? (
+                    <button key={b.id} type="button" className={chipOff}>{b.label}</button>
+                  ) : (
+                    <LockedOption key={b.id} label={b.label} />
+                  )
+                ))}
+              </div>
+            </div>
+
+            {/* Profile Theme */}
+            <div className="mb-5">
+              <label className="label block mb-2">PROFILE THEME</label>
+              <div className="flex flex-wrap gap-2">
+                {THEMES.map(t => (
+                  isSupporter ? (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setCosmetics(prev => ({ ...prev, profile_theme: t.id }))}
+                      className={cosmetics.profile_theme === t.id ? chipOnGold : chipOff}
+                      style={cosmetics.profile_theme === t.id ? { borderColor: t.accent, color: t.accent, background: `${t.accent}10` } : {}}
+                    >
+                      <span className="inline-block w-2 h-2 rounded-full mr-1" style={{ background: t.accent }} />
+                      {t.label}
+                    </button>
+                  ) : t.id === 'default' ? (
+                    <button key={t.id} type="button" className={chipOff}>{t.label}</button>
+                  ) : (
+                    <LockedOption key={t.id} label={t.label} />
+                  )
+                ))}
+              </div>
+            </div>
+
+            {/* Colors */}
+            {isSupporter && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label block mb-2">BORDER COLOR</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={cosmetics.profile_border_color}
+                      onChange={e => setCosmetics(prev => ({ ...prev, profile_border_color: e.target.value }))}
+                      className="w-10 h-8 bg-transparent border-0 cursor-pointer rounded"
+                    />
+                    <input
+                      className={`${inputCls} flex-1 font-mono text-xs uppercase`}
+                      value={cosmetics.profile_border_color}
+                      onChange={e => {
+                        const v = e.target.value;
+                        if (/^#[0-9a-fA-F]{0,6}$/.test(v)) setCosmetics(prev => ({ ...prev, profile_border_color: v }));
+                      }}
+                      maxLength={7}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="label block mb-2">ACCENT COLOR</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={cosmetics.profile_accent_color}
+                      onChange={e => setCosmetics(prev => ({ ...prev, profile_accent_color: e.target.value }))}
+                      className="w-10 h-8 bg-transparent border-0 cursor-pointer rounded"
+                    />
+                    <input
+                      className={`${inputCls} flex-1 font-mono text-xs uppercase`}
+                      value={cosmetics.profile_accent_color}
+                      onChange={e => {
+                        const v = e.target.value;
+                        if (/^#[0-9a-fA-F]{0,6}$/.test(v)) setCosmetics(prev => ({ ...prev, profile_accent_color: v }));
+                      }}
+                      maxLength={7}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Avatar ── */}
         <div className={section} style={{ borderTop: '3px solid #FF4655' }}>
           <div className="p-5">
             <SectionHeader color="#FF4655">PROFILE PICTURE</SectionHeader>
@@ -281,9 +637,7 @@ export default function ProfilePage() {
                 )}
               </div>
               <div>
-                <button onClick={() => fileInputRef.current?.click()} className="btn-ghost text-xs py-1.5 px-3">
-                  CHANGE PHOTO
-                </button>
+                <button onClick={() => fileInputRef.current?.click()} className="btn-ghost text-xs py-1.5 px-3">CHANGE PHOTO</button>
                 <p className="label mt-1.5">MAX 8MB · IMAGES ONLY</p>
               </div>
             </div>
@@ -291,32 +645,23 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Identity */}
+        {/* ── Identity ── */}
         <div className={section} style={{ borderTop: '3px solid #00D4FF' }}>
           <div className="p-5">
             <SectionHeader color="#00D4FF">IDENTITY</SectionHeader>
-
             <div className="mb-4">
               <label className="label block mb-2">GENDER</label>
               <div className="flex flex-wrap gap-2 mb-2">
                 {['Male', 'Female', 'Other'].map(g => (
                   <button key={g} type="button" onClick={() => set('gender', g)}
-                    className={form.gender === g ? chipOnLime : chipOff}>
-                    {g}
-                  </button>
+                    className={form.gender === g ? chipOnLime : chipOff}>{g}</button>
                 ))}
               </div>
               {form.gender === 'Other' && (
-                <input
-                  className={inputCls}
-                  placeholder="describe yourself"
-                  value={form.gender_other}
-                  onChange={e => set('gender_other', e.target.value)}
-                  maxLength={50}
-                />
+                <input className={inputCls} placeholder="describe yourself" value={form.gender_other}
+                  onChange={e => set('gender_other', e.target.value)} maxLength={50} />
               )}
             </div>
-
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div>
                 <label className="label block mb-1.5">RIOT ID</label>
@@ -327,39 +672,28 @@ export default function ProfilePage() {
                 <input className={inputCls} value={form.riot_tag} onChange={e => set('riot_tag', e.target.value)} placeholder="FRAG" maxLength={5} />
               </div>
             </div>
-
-            <div>
+            <div className="mb-4">
               <label className="label block mb-1.5">REGION</label>
               <div className="flex flex-wrap gap-2">
                 {REGIONS.map(r => (
                   <button key={r} type="button" onClick={() => set('region', r)}
-                    className={form.region === r ? chipOnLime : chipOff}>
-                    {r}
-                  </button>
+                    className={form.region === r ? chipOnLime : chipOff}>{r}</button>
                 ))}
               </div>
             </div>
-
             <div>
               <label className="label block mb-1.5">AGE</label>
               <div className="flex items-center gap-4">
-                <input
-                  type="range"
-                  min="18"
-                  max="99"
-                  value={form.age}
+                <input type="range" min="18" max="99" value={form.age}
                   onChange={e => set('age', parseInt(e.target.value, 10))}
-                  className="flex-1 accent-[#FF4655] cursor-pointer"
-                />
-                <span className="font-mono text-xl font-bold text-[#FF4655] w-10 text-center flex-shrink-0">
-                  {form.age}
-                </span>
+                  className="flex-1 accent-[#FF4655] cursor-pointer" />
+                <span className="font-mono text-xl font-bold text-[#FF4655] w-10 text-center flex-shrink-0">{form.age}</span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Ranks */}
+        {/* ── Ranks ── */}
         <div className={section} style={{ borderTop: '3px solid #FFB800' }}>
           <div className="p-5">
             <SectionHeader color="#FFB800">COMPETITIVE</SectionHeader>
@@ -382,76 +716,62 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Playstyle */}
+        {/* ── Playstyle ── */}
         <div className={section} style={{ borderTop: '3px solid #FF3C3C' }}>
           <div className="p-5">
             <SectionHeader color="#FF3C3C">PLAYSTYLE</SectionHeader>
-
             <div className="mb-4">
               <label className="label block mb-1.5">ROLE</label>
               <div className="flex flex-wrap gap-2">
                 {ROLES.map(r => (
                   <button key={r} type="button" onClick={() => set('role', r)}
                     className={form.role === r ? chipOnLime : chipOff}
-                    style={{ fontFamily: 'Barlow Condensed, sans-serif', fontWeight: 700 }}>
-                    {r}
-                  </button>
+                    style={{ fontFamily: 'Barlow Condensed, sans-serif', fontWeight: 700 }}>{r}</button>
                 ))}
               </div>
             </div>
-
             <div>
-              <label className="label block mb-1.5">AGENTS (UP TO 3)</label>
+              <label className="label block mb-1.5">
+                AGENTS (UP TO {agentMax})
+                {isSupporter && <span className="text-[#FFE84D] ml-1 text-[9px]">↑ SUPPORTER PERK</span>}
+              </label>
               <div className="flex flex-wrap gap-2">
                 {AGENTS.map(a => (
-                  <button key={a} type="button" onClick={() => toggleArrayItem('agents', a, 3)}
-                    className={form.agents.includes(a) ? chipOnCyan : chipOff}>
-                    {a}
-                  </button>
+                  <button key={a} type="button" onClick={() => toggleArrayItem('agents', a, agentMax)}
+                    className={form.agents.includes(a) ? chipOnCyan : chipOff}>{a}</button>
                 ))}
               </div>
             </div>
           </div>
         </div>
 
-        {/* Personality */}
+        {/* ── Personality ── */}
         <div className={section} style={{ borderTop: '3px solid #8B6FFF' }}>
           <div className="p-5">
             <SectionHeader color="#8B6FFF">PERSONALITY</SectionHeader>
-
             <div className="mb-4">
               <label className="label block mb-1.5">MUSIC TASTE</label>
               <div className="flex flex-wrap gap-2">
                 {MUSIC_TAGS.map(tag => (
                   <button key={tag} type="button" onClick={() => toggleArrayItem('music_tags', tag)}
-                    className={form.music_tags.includes(tag) ? chipOnPurple : chipOff}>
-                    {tag}
-                  </button>
+                    className={form.music_tags.includes(tag) ? chipOnPurple : chipOff}>{tag}</button>
                 ))}
               </div>
             </div>
-
             <div className="mb-4">
               <label className="label block mb-1.5">FAVORITE ARTIST</label>
-              <input
-                className={inputCls}
-                value={form.favorite_artist}
+              <input className={inputCls} value={form.favorite_artist}
                 onChange={e => set('favorite_artist', e.target.value)}
-                placeholder="who are you listening to"
-                maxLength={100}
-              />
+                placeholder="who are you listening to" maxLength={100} />
             </div>
-
             <div>
-              <label className="label block mb-1.5">ABOUT (280 CHARS)</label>
-              <textarea
-                className={`${inputCls} resize-none`}
-                rows={4}
-                maxLength={280}
-                value={form.about}
-                onChange={e => set('about', e.target.value)}
-              />
-              <p className="label text-right mt-1">{form.about.length}/280</p>
+              <label className="label block mb-1.5">
+                ABOUT ({bioMax} CHARS)
+                {isSupporter && <span className="text-[#FFE84D] ml-1 text-[9px]">↑ SUPPORTER PERK</span>}
+              </label>
+              <textarea className={`${inputCls} resize-none`} rows={4} maxLength={bioMax}
+                value={form.about} onChange={e => set('about', e.target.value)} />
+              <p className="label text-right mt-1">{form.about.length}/{bioMax}</p>
             </div>
           </div>
         </div>
@@ -512,8 +832,15 @@ export default function ProfilePage() {
             )}
           </div>
         </div>
-
       </div>
     </div>
+  );
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense fallback={<div className="max-w-2xl mx-auto px-4 py-8"><div className="bg-[#1B1814] border-2 border-[#2F2B24] h-96 animate-pulse" /></div>}>
+      <ProfilePageInner />
+    </Suspense>
   );
 }

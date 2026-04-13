@@ -10,6 +10,7 @@ import * as match from '../controllers/match.controller.js';
 import * as social from '../controllers/social.controller.js';
 import * as moderation from '../controllers/moderation.controller.js';
 import * as admin from '../controllers/admin.controller.js';
+import * as subscription from '../controllers/subscription.controller.js';
 
 const router = Router();
 const uploadMiddleware = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
@@ -49,6 +50,13 @@ router.get('/api/block',           ...protect, moderation.getBlockedUsers);
 router.post('/api/block',          ...protect, rateLimit('block', 10, 60_000), moderation.blockUser);
 router.delete('/api/block',        ...protect, moderation.unblockUser);
 router.post('/api/reports',        ...protect, rateLimit('reports', 5, 60_000), moderation.createReport);
+
+// ─── Subscription — webhook has NO auth (Stripe calls it directly) ─────────
+router.post('/api/subscription/webhook',         subscription.webhook);
+router.post('/api/subscription/create-checkout', ...protect, subscription.createCheckout);
+router.get('/api/subscription/status',           ...protect, subscription.getStatus);
+router.post('/api/subscription/cancel',          ...protect, subscription.cancel);
+router.post('/api/subscription/portal',          ...protect, subscription.portal);
 
 // ─── Admin ─────────────────────────────────────────────────────
 router.get('/api/admin/users',        ...adminProtect, admin.listUsers);

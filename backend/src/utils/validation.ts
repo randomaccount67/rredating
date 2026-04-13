@@ -13,7 +13,7 @@ export const uuidSchema = z.string().regex(
 
 const riotIdField = z.string().max(24, 'Riot ID too long').nullable().optional();
 const riotTagField = z.string().max(5, 'Riot tag too long (max 5 characters)').nullable().optional();
-const aboutField = z.string().max(500, 'About too long').nullable().optional();
+const aboutField = z.string().max(560, 'About too long').nullable().optional();
 const favoriteArtistField = z.string().max(80, 'Artist name too long').nullable().optional();
 const genderField = z.string().max(30, 'Gender too long').nullable().optional();
 const avatarUrlField = z.string().url('Invalid avatar URL').max(500).nullable().optional();
@@ -43,6 +43,11 @@ export const createProfileSchema = z.object({
   avatar_url: avatarUrlField,
 }).strict(); // Reject unknown fields entirely
 
+const BORDER_VALUES = ['none', 'solid', 'glitch', 'fire', 'neon_pulse', 'rainbow', 'static'] as const;
+const EFFECT_VALUES = ['none', 'gradient', 'glitch', 'shimmer', 'neon'] as const;
+const THEME_VALUES = ['default', 'midnight', 'ember', 'toxic', 'phantom', 'arctic'] as const;
+const BANNER_VALUES = ['none', 'geometric', 'particles', 'grid', 'waves', 'stars'] as const;
+
 /** Schema for PUT /api/profile (profile update) */
 export const updateProfileSchema = z.object({
   riot_id: riotIdField,
@@ -59,6 +64,13 @@ export const updateProfileSchema = z.object({
   about: aboutField,
   avatar_url: avatarUrlField,
   age: z.number().int().min(18).max(99).optional(),
+  // Cosmetic fields (supporter-only; enforced in service layer)
+  profile_border: z.enum(BORDER_VALUES).optional(),
+  profile_border_color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Invalid hex color').optional(),
+  profile_accent_color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Invalid hex color').optional(),
+  profile_banner: z.enum(BANNER_VALUES).optional(),
+  username_effect: z.enum(EFFECT_VALUES).optional(),
+  profile_theme: z.enum(THEME_VALUES).optional(),
 }).strict();
 
 // ─── Privileged Field Stripping ───────────────────────────────
@@ -66,8 +78,11 @@ export const updateProfileSchema = z.object({
 /** Fields that must NEVER be set by a user request */
 const PRIVILEGED_FIELDS = [
   'id', 'auth_user_id', 'email_hash',
-  'is_admin', 'is_banned',
+  'is_admin', 'is_banned', 'is_verified',
   'reports_this_act', 'created_at',
+  // Stripe/supporter fields — set by webhook only
+  'is_supporter', 'stripe_customer_id', 'stripe_subscription_id', 'supporter_since',
+  'badges',
 ] as const;
 
 /**

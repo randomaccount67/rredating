@@ -20,8 +20,17 @@ export interface PartialProfile {
   favorite_artist?: string | null;
   is_online?: boolean;
   is_verified?: boolean;
+  is_supporter?: boolean;
+  supporter_since?: string | null;
   created_at?: string;
   age?: number | null;
+  profile_border?: string;
+  profile_border_color?: string;
+  profile_accent_color?: string;
+  profile_banner?: string;
+  username_effect?: string;
+  profile_theme?: string;
+  badges?: string[];
 }
 
 /**
@@ -55,5 +64,14 @@ export function buildProfile(u: PartialProfile): Profile {
     is_admin: false,
     is_banned: false,
     is_verified: u.is_verified ?? false,
+    is_supporter: u.is_supporter ?? false,
+    supporter_since: u.supporter_since ?? null,
+    profile_border: u.profile_border ?? 'none',
+    profile_border_color: u.profile_border_color ?? '#FF4655',
+    profile_accent_color: u.profile_accent_color ?? '#FF4655',
+    profile_banner: u.profile_banner ?? 'none',
+    username_effect: u.username_effect ?? 'none',
+    profile_theme: u.profile_theme ?? 'default',
+    badges: u.badges ?? [],
   };
 }
