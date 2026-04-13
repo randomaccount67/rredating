@@ -1,43 +1,8 @@
 import { db } from './db.js';
-import { config } from '../config.js';
 import { cleanProfanity } from '../utils/helpers.js';
 import { badRequest, notFound, forbidden } from '../utils/errors.js';
 import { PROFILE_PUBLIC_COLUMNS } from '../utils/columns.js';
-import { uuidSchema } from '../utils/validation.js';
 import type { Profile } from '../types/index.js';
-
-/**
- * Broadcast a new message to all frontend realtime subscribers via the Supabase
- * Broadcast REST API. Uses the service-role key so RLS doesn't block delivery.
- * Fire-and-forget: errors are logged but never thrown.
- */
-async function broadcastMessage(conversationId: string, message: Record<string, unknown>): Promise<void> {
-  try {
-    const url = `${config.supabaseUrl}/realtime/v1/api/broadcast`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${config.supabaseServiceRoleKey}`,
-        'apikey': config.supabaseServiceRoleKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        messages: [{
-          topic: `realtime:conversation:${conversationId}`,
-          event: 'new_message',
-          payload: { message },
-        }],
-      }),
-    });
-    const text = await res.text();
-    console.log('[broadcast] broadcast result:', res.status, text);
-    if (!res.ok) {
-      console.error(`[broadcast] HTTP ${res.status}:`, text);
-    }
-  } catch (err) {
-    console.log('[broadcast] broadcast error:', err);
-  }
-}
 
 // ─── Messages ──────────────────────────────────────────────────
 
@@ -111,10 +76,28 @@ export async function sendMessage(profile: Profile, conversationId: string, cont
 
   if (error) throw new Error(error.message);
 
-  // Broadcast to frontend realtime subscribers. Fire-and-forget so a broadcast
-  // failure never breaks message delivery.
-  console.log('[broadcast] attempting broadcast for conversation:', conversationId);
-  broadcastMessage(conversationId, message as unknown as Record<string, unknown>);
+  // Broadcast to realtime channel so recipient gets instant update
+  try {
+    const broadcastUrl = `${process.env.SUPABASE_URL}/realtime/v1/api/broadcast`;
+    const response = await fetch(broadcastUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+        'apikey': process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
+      },
+      body: JSON.stringify({
+        messages: [{
+          topic: `conversation:${conversationId}`,
+          event: 'new_message',
+          payload: { message },
+        }],
+      }),
+    });
+    console.log('[broadcast] status:', response.status, 'conversation:', conversationId);
+  } catch (err) {
+    console.error('[broadcast] error:', err);
+  }
 
   // Check if other user is actively viewing (skip notification if so)
   const { data: viewer } = await db
