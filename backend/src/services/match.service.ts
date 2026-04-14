@@ -79,15 +79,21 @@ function filterBrowseCandidates(rows: Profile[], query: Record<string, string>):
 async function browseFromProfilesTable(profile: Profile, includePassed = false) {
   const [passesRes, reqOutRes, reqInRes, blockOutRes, blockInRes] = await Promise.all([
     db.from('passes').select('to_user').eq('from_user', profile.id),
-    db.from('match_requests').select('to_user').eq('from_user', profile.id),
-    // Also exclude users who sent ME requests (pending or matched) — they've already interacted
-    db.from('match_requests').select('from_user').eq('to_user', profile.id),
+    // Only exclude ACTIVE (pending/matched) outgoing requests — declined requests must not
+    // cause permanent invisibility of the target in the viewer's feed.
+    db.from('match_requests').select('to_user').eq('from_user', profile.id).in('status', ['pending', 'matched']),
+    // Only exclude ACTIVE (pending/matched) incoming requests — if a viewer declined a
+    // request, the requester must be able to reappear in browse. Without this filter,
+    // every declined request permanently removes that user from the viewer's pool,
+    // causing established users to approach zero visibility as their history grows.
+    db.from('match_requests').select('from_user').eq('to_user', profile.id).in('status', ['pending', 'matched']),
     db.from('blocked_users').select('blocked_id').eq('blocker_id', profile.id),
     db.from('blocked_users').select('blocker_id').eq('blocked_id', profile.id),
   ]);
 
   const prefetchErr = passesRes.error || reqOutRes.error || reqInRes.error || blockOutRes.error || blockInRes.error;
   if (prefetchErr) {
+    console.error('[browse:ts] prefetch error', prefetchErr);
     return { data: null as Profile[] | null, error: prefetchErr };
   }
 
@@ -113,12 +119,24 @@ async function browseFromProfilesTable(profile: Profile, includePassed = false) 
     .limit(5000);
 
   if (error) {
+    console.error('[browse:ts] profiles query error', error);
     return { data: null, error };
   }
 
   const list = (rows as Profile[] | null) ?? [];
-  const filtered = list.filter(p => !exclude.has(p.id));
-  return { data: filtered.slice(0, 3000), error: null };
+  const afterExclusion = list.filter(p => !exclude.has(p.id));
+
+  console.log(
+    `[browse:ts] viewer=${profile.id} ` +
+    `total=${list.length} excluded=${exclude.size} ` +
+    `(passes=${passesRes.data?.length ?? 0} ` +
+    `reqOut=${reqOutRes.data?.length ?? 0} ` +
+    `reqIn=${reqInRes.data?.length ?? 0} ` +
+    `blocks=${(blockOutRes.data?.length ?? 0) + (blockInRes.data?.length ?? 0)}) ` +
+    `remaining=${afterExclusion.length}`
+  );
+
+  return { data: afterExclusion.slice(0, 3000), error: null };
 }
 
 async function loadBrowseCandidates(profile: Profile, includePassed = false): Promise<Profile[]> {
@@ -133,15 +151,22 @@ async function loadBrowseCandidates(profile: Profile, includePassed = false): Pr
       .filter(p => p.avatar_url);
 
     if (rpc.error) {
+      console.error(`[browse:rpc] error for viewer=${profile.id}`, rpc.error.message, rpc.error.code);
       securityLog.browseRpcFailed(profile.id, rpc.error.message, rpc.error.code);
     }
 
     if (fromRpc.length > 0) {
+      console.log(`[browse:rpc] viewer=${profile.id} returned=${fromRpc.length} (using RPC path)`);
       return fromRpc;
     }
+
+    // RPC returned 0 rows — fall through to TS path. Note: if the RPC SQL still uses
+    // the old unfiltered match_requests join, users on the RPC path will still see the
+    // exclusion bug. Apply the SQL migration in the README to fix the RPC function.
+    console.log(`[browse:rpc] viewer=${profile.id} returned 0 rows — falling back to TS path`);
   }
 
-  // RPC missing/errored/skipped — use TS fallback with the appropriate passes flag.
+  // TS fallback: applies correct status-filtered exclusion logic.
   const fb = await browseFromProfilesTable(profile, includePassed);
   if (fb.error || !fb.data) return [];
   return fb.data as Profile[];
