@@ -22,7 +22,7 @@ export function wrap(handler: AsyncHandler): AsyncHandler {
       await handler(req, res);
     } catch (e) {
       if (e instanceof AppError) {
-        res.status(e.statusCode).json({ error: e.message });
+        res.status(e.statusCode).json({ error: e.message, ...(e.code ? { code: e.code } : {}) });
         return;
       }
       console.error('Unhandled controller error:', e);

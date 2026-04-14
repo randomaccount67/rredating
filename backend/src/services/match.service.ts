@@ -6,6 +6,18 @@ import { securityLog } from '../utils/logger.js';
 import { broadcast } from '../utils/broadcast.js';
 import type { Profile } from '../types/index.js';
 
+/** Hard server-side cap on profiles returned per browse request. */
+const MAX_BROWSE_LIMIT = 50;
+
+/**
+ * Throws a generic 403 for any precondition failure in sendRequest.
+ * A single opaque error prevents the caller from distinguishing which check
+ * failed (e.g. "is this user blocked?" vs "does this user exist?").
+ */
+function requestNotAllowed(): AppError {
+  return new AppError(403, 'You cannot send a request to this user.', 'REQUEST_NOT_ALLOWED');
+}
+
 /**
  * Region / rank / gender / mic filters applied in-process.
  * PostgREST often does not apply `.eq()` / `.range()` correctly when chained after
@@ -60,8 +72,11 @@ function filterBrowseCandidates(rows: Profile[], query: Record<string, string>):
 /**
  * Same rules as get_browseable_profiles SQL. Exclusions are applied in memory so we
  * never rely on PostgREST `not.in` for UUID lists (often breaks or returns empty).
+ *
+ * When includePassed=true the passes table is still fetched but not applied to the
+ * exclude set — the user explicitly requested to see profiles they passed on.
  */
-async function browseFromProfilesTable(profile: Profile) {
+async function browseFromProfilesTable(profile: Profile, includePassed = false) {
   const [passesRes, reqOutRes, reqInRes, blockOutRes, blockInRes] = await Promise.all([
     db.from('passes').select('to_user').eq('from_user', profile.id),
     db.from('match_requests').select('to_user').eq('from_user', profile.id),
@@ -77,7 +92,10 @@ async function browseFromProfilesTable(profile: Profile) {
   }
 
   const exclude = new Set<string>();
-  passesRes.data?.forEach(r => exclude.add(r.to_user));
+  // Only exclude passes when not in includePassed mode
+  if (!includePassed) {
+    passesRes.data?.forEach(r => exclude.add(r.to_user));
+  }
   reqOutRes.data?.forEach(r => exclude.add(r.to_user));
   reqInRes.data?.forEach(r => exclude.add(r.from_user));
   blockOutRes.data?.forEach(r => exclude.add(r.blocked_id));
@@ -103,67 +121,38 @@ async function browseFromProfilesTable(profile: Profile) {
   return { data: filtered.slice(0, 3000), error: null };
 }
 
-/**
- * Fallback pool: only exclude blocked users (not passes/requests).
- * Used when the main pool is genuinely empty so users always have someone to browse.
- */
-async function loadFallbackCandidates(profile: Profile): Promise<Profile[]> {
-  const [blockOutRes, blockInRes] = await Promise.all([
-    db.from('blocked_users').select('blocked_id').eq('blocker_id', profile.id),
-    db.from('blocked_users').select('blocker_id').eq('blocked_id', profile.id),
-  ]);
-  const blockedIds = new Set<string>();
-  blockOutRes.data?.forEach(r => blockedIds.add(r.blocked_id));
-  blockInRes.data?.forEach(r => blockedIds.add(r.blocker_id));
+async function loadBrowseCandidates(profile: Profile, includePassed = false): Promise<Profile[]> {
+  // When includePassed=true, skip the RPC (which always excludes passes internally) and
+  // go straight to the TS path where we can honour the includePassed flag.
+  if (!includePassed) {
+    const rpc = await db
+      .rpc('get_browseable_profiles', { viewer_id: profile.id })
+      .select(BROWSE_COLUMNS);
 
-  const { data: rows } = await db
-    .from('profiles')
-    .select(BROWSE_COLUMNS)
-    .eq('confirmed_18', true)
-    .eq('is_banned', false)
-    .not('avatar_url', 'is', null)
-    .neq('avatar_url', '')
-    .neq('id', profile.id)
-    .order('created_at', { ascending: false })
-    .limit(500);
+    const fromRpc = (!rpc.error && rpc.data ? (rpc.data as Profile[]) : [])
+      .filter(p => p.avatar_url);
 
-  const list = (rows as Profile[] | null) ?? [];
-  return list.filter(p => !blockedIds.has(p.id));
-}
+    if (rpc.error) {
+      securityLog.browseRpcFailed(profile.id, rpc.error.message, rpc.error.code);
+    }
 
-async function loadBrowseCandidates(profile: Profile): Promise<Profile[]> {
-  const rpc = await db
-    .rpc('get_browseable_profiles', { viewer_id: profile.id })
-    .select(BROWSE_COLUMNS);
-
-  const fromRpc = (!rpc.error && rpc.data ? (rpc.data as Profile[]) : [])
-    .filter(p => p.avatar_url);
-
-  if (rpc.error) {
-    securityLog.browseRpcFailed(profile.id, rpc.error.message, rpc.error.code);
+    if (fromRpc.length > 0) {
+      return fromRpc;
+    }
   }
 
-  if (fromRpc.length > 0) {
-    return fromRpc;
-  }
-
-  // RPC missing, errored, or returned zero rows — duplicate logic in TS (fixes empty Browse
-  // when PostgREST mishandles RPC or the function returns no rows incorrectly).
-  const fb = await browseFromProfilesTable(profile);
+  // RPC missing/errored/skipped — use TS fallback with the appropriate passes flag.
+  const fb = await browseFromProfilesTable(profile, includePassed);
   if (fb.error || !fb.data) return [];
   return fb.data as Profile[];
 }
 
 export async function browse(profile: Profile, query: Record<string, string>) {
-  const limit = Math.min(parseInt(query.limit || '12', 10), 24);
+  const parsedLimit = Number(query.limit);
+  const limit = Math.min(Number.isNaN(parsedLimit) ? 20 : parsedLimit, MAX_BROWSE_LIMIT);
+  const includePassed = query.includePassed === 'true';
 
-  let rawCandidates = filterBrowseCandidates(await loadBrowseCandidates(profile), query);
-
-  // Fallback: if pool is genuinely empty, show all non-blocked profiles with avatars
-  if (rawCandidates.length === 0) {
-    const fallback = filterBrowseCandidates(await loadFallbackCandidates(profile), query);
-    if (fallback.length > 0) rawCandidates = fallback;
-  }
+  const rawCandidates = filterBrowseCandidates(await loadBrowseCandidates(profile, includePassed), query);
 
   // Deduplicate by ID (RPC + TS-fallback paths may overlap)
   const seenIds = new Set<string>();
@@ -215,29 +204,52 @@ export async function browse(profile: Profile, query: Record<string, string>) {
 
 export async function sendRequest(profile: Profile, toProfileId: string) {
   if (!toProfileId) throw badRequest('to_user_profile_id is required');
-  // H5 fix: Validate UUID format
   if (!uuidSchema.safeParse(toProfileId).success) throw badRequest('Invalid profile ID format');
 
-  // Verify target exists and not banned
-  const { data: target } = await db
-    .from('profiles')
-    .select('id, is_banned')
-    .eq('id', toProfileId)
-    .single();
-  if (!target) throw notFound('User not found');
-  if (target.is_banned) throw badRequest('User is not available');
+  // Synchronous guards — no DB needed
+  if (toProfileId === profile.id) throw requestNotAllowed();
+  if (!profile.avatar_url) throw new AppError(403, 'A profile picture is required to use this feature.', 'PROFILE_INCOMPLETE');
 
-  // Check for reverse (mutual match detection)
-  const { data: reverse } = await db
-    .from('match_requests')
-    .select('id, status')
-    .eq('from_user', toProfileId)
-    .eq('to_user', profile.id)
-    .single();
+  // Batch all prerequisite DB checks in a single parallel round-trip
+  const [targetRes, blockOutRes, blockInRes, outgoingRes, incomingRes] = await Promise.all([
+    // 1. Target must exist and not be banned
+    db.from('profiles').select('id, is_banned').eq('id', toProfileId).maybeSingle(),
+    // 2. Current user must not have blocked target
+    db.from('blocked_users').select('id').eq('blocker_id', profile.id).eq('blocked_id', toProfileId).maybeSingle(),
+    // 3. Target must not have blocked current user
+    db.from('blocked_users').select('id').eq('blocker_id', toProfileId).eq('blocked_id', profile.id).maybeSingle(),
+    // 4. No active outgoing request from us to them
+    db.from('match_requests').select('id, status').eq('from_user', profile.id).eq('to_user', toProfileId).in('status', ['pending', 'matched']).maybeSingle(),
+    // 5. No active incoming request from them to us (mutual match path)
+    db.from('match_requests').select('id, status').eq('from_user', toProfileId).eq('to_user', profile.id).in('status', ['pending', 'matched']).maybeSingle(),
+  ]);
 
-  if (reverse && reverse.status === 'pending') {
-    // Mutual match!
-    await db.from('match_requests').update({ status: 'matched' }).eq('id', reverse.id);
+  // Evaluate checks — all use the same opaque error so callers learn nothing specific
+  if (!targetRes.data || targetRes.data.is_banned) throw requestNotAllowed();
+  if (blockOutRes.data || blockInRes.data) throw requestNotAllowed();
+
+  // Idempotent: we already have an active outgoing request
+  if (outgoingRes.data) return { status: outgoingRes.data.status as string };
+
+  // Idempotent: already matched via their request
+  if (incomingRes.data?.status === 'matched') return { status: 'matched' };
+
+  // Mutual match: they have a pending request to us → atomically accept it
+  if (incomingRes.data?.status === 'pending') {
+    const reverse = incomingRes.data;
+
+    // Conditional update: only transitions if the row is STILL pending (race guard)
+    const { data: matchedRows } = await db
+      .from('match_requests')
+      .update({ status: 'matched' })
+      .eq('id', reverse.id)
+      .eq('status', 'pending')
+      .select('id');
+
+    if (!matchedRows || matchedRows.length === 0) {
+      // Racing request already processed this — idempotent
+      return { status: 'matched' };
+    }
 
     // Check for existing conversation before creating a new one (prevents message loss)
     const { data: existingConv } = await db
@@ -258,13 +270,11 @@ export async function sendRequest(profile: Profile, toProfileId: string) {
       convId = newConv?.id;
     }
 
-    // Notify both users
     await db.from('notifications').insert([
       { user_id: profile.id, type: 'matched', related_user: toProfileId },
       { user_id: toProfileId, type: 'matched', related_user: profile.id },
     ]);
 
-    // Broadcast matched notification and inbox refresh to both users
     await Promise.all([
       broadcast(`notification:${profile.id}`, 'new_notification', { type: 'matched', related_user: toProfileId }),
       broadcast(`notification:${toProfileId}`, 'new_notification', { type: 'matched', related_user: profile.id }),
@@ -275,24 +285,22 @@ export async function sendRequest(profile: Profile, toProfileId: string) {
     return { status: 'matched', conversation_id: convId };
   }
 
-  // Insert new pending request
+  // No existing request in either direction — insert new pending request
   const { data: newRequest, error } = await db
     .from('match_requests')
     .insert({ from_user: profile.id, to_user: toProfileId, status: 'pending' })
     .select()
     .single();
 
-  if (error?.code === '23505') return { status: 'pending' };
+  if (error?.code === '23505') return { status: 'pending' }; // DB-level unique constraint safety net
   if (error) throw new AppError(500, error.message);
 
-  // Notify target
   await db.from('notifications').insert({
     user_id: toProfileId,
     type: 'match_request',
     related_user: profile.id,
   });
 
-  // Broadcast new request and notification to recipient
   await Promise.all([
     broadcast(`match_requests:${toProfileId}`, 'new_request', {
       request: newRequest,
@@ -306,10 +314,10 @@ export async function sendRequest(profile: Profile, toProfileId: string) {
 
 export async function respondToRequest(profile: Profile, requestId: string, action: string) {
   if (!requestId || !action) throw badRequest('request_id and action are required');
-  // H5 fix: Validate UUID format
   if (!uuidSchema.safeParse(requestId).success) throw badRequest('Invalid request ID format');
   if (action !== 'accept' && action !== 'decline') throw badRequest('action must be accept or decline');
 
+  // Read once to establish existence and ownership — errors here are correct 404/400
   const { data: request } = await db
     .from('match_requests')
     .select('*')
@@ -320,14 +328,36 @@ export async function respondToRequest(profile: Profile, requestId: string, acti
   if (request.to_user !== profile.id) throw badRequest('Not your request');
 
   if (action === 'decline') {
-    await db.from('match_requests').update({ status: 'declined' }).eq('id', requestId);
+    // Atomic conditional update: only transitions pending → declined.
+    // If the row is already declined/matched (parallel requests), the update
+    // affects 0 rows and we return idempotently without side-effects.
+    await db
+      .from('match_requests')
+      .update({ status: 'declined' })
+      .eq('id', requestId)
+      .eq('to_user', profile.id)
+      .eq('status', 'pending');
     return { status: 'declined' };
   }
 
-  // Accept → match
-  await db.from('match_requests').update({ status: 'matched' }).eq('id', requestId);
+  // Accept — atomic conditional update: only transitions pending → matched.
+  // The .eq('status', 'pending') filter means parallel accepts race and only ONE
+  // update actually changes a row. The losers get 0 rows back and short-circuit
+  // without creating duplicate notifications.
+  const { data: matched } = await db
+    .from('match_requests')
+    .update({ status: 'matched' })
+    .eq('id', requestId)
+    .eq('to_user', profile.id)
+    .eq('status', 'pending')
+    .select('id');
 
-  // Check for existing conversation before creating a new one (prevents message loss)
+  if (!matched || matched.length === 0) {
+    // Already accepted by a racing request — idempotent success, no notification
+    return { status: 'matched' };
+  }
+
+  // Exactly one winner reaches here — create conversation and notify
   const { data: existingConv } = await db
     .from('conversations')
     .select('id')
@@ -351,7 +381,6 @@ export async function respondToRequest(profile: Profile, requestId: string, acti
     { user_id: request.to_user, type: 'matched', related_user: request.from_user },
   ]);
 
-  // Broadcast matched notification and inbox refresh to both users
   await Promise.all([
     broadcast(`notification:${request.from_user}`, 'new_notification', { type: 'matched', related_user: request.to_user }),
     broadcast(`notification:${request.to_user}`, 'new_notification', { type: 'matched', related_user: request.from_user }),
