@@ -54,14 +54,7 @@ export default function MatchPage() {
   // appliedFilters = what the backend is actually queried with
   const [pendingFilters, setPendingFilters] = useState<Filters>(savedFilters);
   const [appliedFilters, setAppliedFilters] = useState<Filters>(savedFilters);
-  const [seenProfileIds] = useState<Set<string>>(() => {
-    if (typeof window === 'undefined') return new Set<string>();
-    try {
-      const raw = sessionStorage.getItem('browse_seen');
-      if (raw) return new Set<string>(JSON.parse(raw));
-    } catch {}
-    return new Set<string>();
-  });
+  const [includePassed, setIncludePassed] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [reportingProfile, setReportingProfile] = useState<Profile | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -90,13 +83,7 @@ export default function MatchPage() {
       .catch(() => {});
   }, [api]);
 
-  const persistSeen = useCallback(() => {
-    try {
-      sessionStorage.setItem('browse_seen', JSON.stringify([...seenProfileIds]));
-    } catch {}
-  }, [seenProfileIds]);
-
-  const fetchProfiles = useCallback(async (pageNum: number, currentFilters: Filters) => {
+  const fetchProfiles = useCallback(async (pageNum: number, currentFilters: Filters, withPassed = false) => {
     setLoading(true);
     setFetchError(null);
     setNeedsOnboarding(false);
@@ -110,6 +97,7 @@ export default function MatchPage() {
         ...(currentFilters.gender && { gender: currentFilters.gender }),
         ...(currentFilters.age_min > 18 && { age_min: String(currentFilters.age_min) }),
         ...(currentFilters.age_max < 99 && { age_max: String(currentFilters.age_max) }),
+        ...(withPassed && { includePassed: 'true' }),
       });
       const res = await api(`/api/match?${params}`);
       if (!res.ok) {
@@ -132,15 +120,10 @@ export default function MatchPage() {
       }
       const data = await res.json();
       if (pageNum === 0) {
-        data.profiles.forEach((p: Profile) => seenProfileIds.add(p.id));
-        persistSeen();
         setProfiles(data.profiles);
         setCurrentIndex(0);
       } else {
-        const newProfiles = (data.profiles as Profile[]).filter(p => !seenProfileIds.has(p.id));
-        newProfiles.forEach(p => seenProfileIds.add(p.id));
-        persistSeen();
-        setProfiles(prev => [...prev, ...newProfiles]);
+        setProfiles(prev => [...prev, ...(data.profiles as Profile[])]);
       }
       setHasMore(data.hasMore);
       setRequestStatuses(prev => ({ ...prev, ...data.requestStatuses }));
@@ -162,7 +145,7 @@ export default function MatchPage() {
     } finally {
       setLoading(false);
     }
-  }, [api, seenProfileIds, persistSeen]);
+  }, [api]);
 
   // Persist applied filters to localStorage
   useEffect(() => {
@@ -170,11 +153,10 @@ export default function MatchPage() {
   }, [appliedFilters]);
 
   useEffect(() => {
-    // Re-fetch when applied filters change
-    seenProfileIds.clear();
-    try { sessionStorage.removeItem('browse_seen'); } catch {}
+    // Re-fetch when applied filters change; always reset includePassed on filter change
+    setIncludePassed(false);
     setPage(0);
-    fetchProfiles(0, appliedFilters);
+    fetchProfiles(0, appliedFilters, false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appliedFilters, fetchProfiles]);
 
@@ -187,9 +169,9 @@ export default function MatchPage() {
     if (profiles.length > 0 && nearEnd && hasMore && !loading) {
       const nextPage = page + 1;
       setPage(nextPage);
-      fetchProfiles(nextPage, appliedFilters);
+      fetchProfiles(nextPage, appliedFilters, includePassed);
     }
-  }, [currentIndex, profiles.length, hasMore, loading, page, appliedFilters, fetchProfiles]);
+  }, [currentIndex, profiles.length, hasMore, loading, page, appliedFilters, includePassed, fetchProfiles]);
 
   const handleApplyFilters = () => {
     setAppliedFilters(pendingFilters);
@@ -279,10 +261,9 @@ export default function MatchPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => {
-              seenProfileIds.clear();
-              try { sessionStorage.removeItem('browse_seen'); } catch {}
+              setIncludePassed(false);
               setPage(0);
-              fetchProfiles(0, appliedFilters);
+              fetchProfiles(0, appliedFilters, false);
             }}
             className="btn-ghost p-2"
             title="Refresh"
@@ -482,6 +463,12 @@ export default function MatchPage() {
                 (18+ confirmed). People who never completed onboarding can appear in Admin but not here. Ask someone else to register,
                 or in Supabase set <span className="font-mono text-[#00E5FF]/80">confirmed_18 = true</span> on test profiles.
               </p>
+              <button
+                onClick={() => { setIncludePassed(false); setPage(0); fetchProfiles(0, appliedFilters, false); }}
+                className="mt-6 btn-ghost text-xs"
+              >
+                <RefreshCw size={12} className="inline mr-1" /> REFRESH
+              </button>
             </>
           ) : profiles.length === 0 && browseMeta.poolSize === 0 && browseMeta.filtersActive ? (
             <>
@@ -489,26 +476,44 @@ export default function MatchPage() {
                 NO MATCHES FOR FILTERS
               </p>
               <p className="text-[#8B90A8] text-sm mt-3">Try clearing filters or widening rank/region.</p>
+              <button
+                onClick={() => { setIncludePassed(false); setPage(0); fetchProfiles(0, appliedFilters, false); }}
+                className="mt-6 btn-ghost text-xs"
+              >
+                <RefreshCw size={12} className="inline mr-1" /> REFRESH
+              </button>
             </>
           ) : (
             <>
-              <p className="font-extrabold text-3xl uppercase text-[#2A2D35]" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
-                NO MORE PLAYERS
+              <p className="text-[#8B90A8] text-sm leading-relaxed">
+                looks like there are no more profiles left.{' '}
+                {!includePassed ? (
+                  <>
+                    if you want you can{' '}
+                    <button
+                      className="underline text-[#E8EAF0] hover:text-[#FF4655] transition-colors"
+                      onClick={() => {
+                        setIncludePassed(true);
+                        setPage(0);
+                        fetchProfiles(0, appliedFilters, true);
+                      }}
+                    >
+                      click this
+                    </button>
+                    {' '}to bring up everyone you passed. time to lower your standards.
+                  </>
+                ) : (
+                  <>everyone you passed is already included.</>
+                )}
               </p>
-              <p className="text-[#525566] text-sm mt-2">Adjust your filters or check back later.</p>
+              <button
+                onClick={() => { setIncludePassed(false); setPage(0); fetchProfiles(0, appliedFilters, false); }}
+                className="mt-6 btn-ghost text-xs"
+              >
+                <RefreshCw size={12} className="inline mr-1" /> REFRESH
+              </button>
             </>
           )}
-          <button
-            onClick={() => {
-              seenProfileIds.clear();
-              try { sessionStorage.removeItem('browse_seen'); } catch {}
-              setPage(0);
-              fetchProfiles(0, appliedFilters);
-            }}
-            className="mt-6 btn-ghost text-xs"
-          >
-            <RefreshCw size={12} className="inline mr-1" /> REFRESH
-          </button>
         </div>
       ) : currentProfile ? (
         /* ProfileBorder must NOT have clipPath — clipPath clips box-shadow from animations.
