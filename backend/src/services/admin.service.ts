@@ -6,22 +6,29 @@ import { securityLog } from '../utils/logger.js';
 import type { Profile } from '../types/index.js';
 
 const PAGE_SIZE = 50;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function listUsers(page = 0, search = '') {
   const from = page * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
 
+  // Apply filter BEFORE .range() so the exact count reflects the filtered set.
   let query = db
     .from('profiles')
     .select(ADMIN_USER_COLUMNS, { count: 'exact' })
-    .order('created_at', { ascending: false })
-    .range(from, to);
+    .order('created_at', { ascending: false });
 
   if (search) {
-    query = query.ilike('riot_id', `%${search}%`);
+    if (UUID_RE.test(search)) {
+      // Search by profile UUID
+      query = query.eq('id', search);
+    } else {
+      // Partial match on riot_id (case-insensitive)
+      query = query.ilike('riot_id', `%${search}%`);
+    }
   }
 
-  const { data, count } = await query;
+  const { data, count } = await query.range(from, to);
   const total = count ?? 0;
 
   return {

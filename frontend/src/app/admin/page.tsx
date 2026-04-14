@@ -118,7 +118,7 @@ export default function AdminPage() {
     }
   }, [router, api]);
 
-  // Debounce search — wait 400ms before firing API call
+  // Debounce search — wait 400ms, then reset to page 0 and fetch
   useEffect(() => {
     const timer = setTimeout(() => {
       setPage(0);
@@ -127,10 +127,11 @@ export default function AdminPage() {
     return () => clearTimeout(timer);
   }, [searchQuery, loadUsers]);
 
-  useEffect(() => {
-    loadUsers(page, searchQuery);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page]);
+  // Pagination is driven by handlePageChange — no separate page effect needed
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    loadUsers(newPage, searchQuery);
+  };
 
   useEffect(() => {
     loadReports();
@@ -365,7 +366,8 @@ export default function AdminPage() {
                 type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search by Riot ID or profile ID..."
+                onKeyDown={e => e.key === 'Enter' && e.preventDefault()}
+                placeholder="Search by Riot ID or profile UUID..."
                 className="w-full bg-[#13151A] border border-[#2A2D35] pl-7 pr-3 py-1.5 font-mono text-[10px] text-[#E8EAF0] placeholder-[#525566] focus:border-[#FF4655] outline-none"
               />
             </div>
@@ -450,7 +452,7 @@ export default function AdminPage() {
             <div className="px-4 py-2 border-t border-[#2A2D35] flex items-center justify-between gap-2">
               <button
                 disabled={page === 0 || loading}
-                onClick={() => setPage(p => Math.max(0, p - 1))}
+                onClick={() => handlePageChange(Math.max(0, page - 1))}
                 className="font-mono text-[10px] text-[#525566] hover:text-[#E8EAF0] border border-[#2A2D35] px-2 py-1 transition-colors disabled:opacity-30 flex items-center gap-1"
               >
                 <ChevronLeft size={10} /> PREV
@@ -460,7 +462,7 @@ export default function AdminPage() {
               </span>
               <button
                 disabled={page >= totalPages - 1 || loading}
-                onClick={() => setPage(p => p + 1)}
+                onClick={() => handlePageChange(page + 1)}
                 className="font-mono text-[10px] text-[#525566] hover:text-[#E8EAF0] border border-[#2A2D35] px-2 py-1 transition-colors disabled:opacity-30 flex items-center gap-1"
               >
                 NEXT <ChevronRight size={10} />

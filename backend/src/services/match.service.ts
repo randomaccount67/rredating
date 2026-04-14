@@ -88,6 +88,8 @@ async function browseFromProfilesTable(profile: Profile) {
     .select(BROWSE_COLUMNS)
     .eq('confirmed_18', true)
     .eq('is_banned', false)
+    .not('avatar_url', 'is', null)
+    .neq('avatar_url', '')
     .neq('id', profile.id)
     .order('created_at', { ascending: false })
     .limit(5000);
@@ -119,6 +121,8 @@ async function loadFallbackCandidates(profile: Profile): Promise<Profile[]> {
     .select(BROWSE_COLUMNS)
     .eq('confirmed_18', true)
     .eq('is_banned', false)
+    .not('avatar_url', 'is', null)
+    .neq('avatar_url', '')
     .neq('id', profile.id)
     .order('created_at', { ascending: false })
     .limit(500);
@@ -132,7 +136,8 @@ async function loadBrowseCandidates(profile: Profile): Promise<Profile[]> {
     .rpc('get_browseable_profiles', { viewer_id: profile.id })
     .select(BROWSE_COLUMNS);
 
-  const fromRpc = !rpc.error && rpc.data ? (rpc.data as Profile[]) : [];
+  const fromRpc = (!rpc.error && rpc.data ? (rpc.data as Profile[]) : [])
+    .filter(p => p.avatar_url);
 
   if (rpc.error) {
     securityLog.browseRpcFailed(profile.id, rpc.error.message, rpc.error.code);
@@ -150,41 +155,46 @@ async function loadBrowseCandidates(profile: Profile): Promise<Profile[]> {
 }
 
 export async function browse(profile: Profile, query: Record<string, string>) {
-  const page = parseInt(query.page || '0', 10);
   const limit = Math.min(parseInt(query.limit || '12', 10), 24);
-  const offset = page * limit;
 
   let rawCandidates = filterBrowseCandidates(await loadBrowseCandidates(profile), query);
 
-  // Fallback: if pool is genuinely empty on page 0, show all non-blocked profiles
-  if (rawCandidates.length === 0 && offset === 0) {
+  // Fallback: if pool is genuinely empty, show all non-blocked profiles with avatars
+  if (rawCandidates.length === 0) {
     const fallback = filterBrowseCandidates(await loadFallbackCandidates(profile), query);
     if (fallback.length > 0) rawCandidates = fallback;
   }
 
-  // Supporters and verified users get priority placement — deduplicate by ID in the same pass
+  // Deduplicate by ID (RPC + TS-fallback paths may overlap)
   const seenIds = new Set<string>();
-  const candidates = [
-    ...rawCandidates.filter(p => p.is_supporter || p.is_verified),
-    ...rawCandidates.filter(p => !p.is_supporter && !p.is_verified),
-  ].filter(p => { if (seenIds.has(p.id)) return false; seenIds.add(p.id); return true; });
+  const candidates = rawCandidates.filter(p => {
+    if (seenIds.has(p.id)) return false;
+    seenIds.add(p.id);
+    return true;
+  });
 
-  // Non-overlapping windows so the same profile never appears on two different pages
-  const windowRows = candidates.slice(offset, offset + limit);
-
-  if (windowRows.length === 0) {
+  if (candidates.length === 0) {
     return {
       profiles: [],
       hasMore: false,
       requestStatuses: {},
-      poolSize: candidates.length,
+      poolSize: 0,
       filtersActive: hasBrowseQueryFilters(query),
     };
   }
 
-  const shuffled = [...windowRows].sort(() => Math.random() - 0.5);
+  // Weighted random ordering: supporters get +2 boost, verified +1.
+  // Sorting the whole pool means every refresh produces a different order while
+  // supporters and verified users still float toward the top on average.
+  const scored = candidates.map(p => ({
+    profile: p,
+    score: Math.random() + (p.is_supporter ? 2 : 0) + (p.is_verified ? 1 : 0),
+  }));
+  scored.sort((a, b) => b.score - a.score);
 
-  const ids = shuffled.map(p => p.id);
+  const selected = scored.slice(0, limit).map(s => s.profile);
+
+  const ids = selected.map(p => p.id);
   const { data: statuses } = await db
     .from('match_requests')
     .select('to_user, status')
@@ -195,8 +205,8 @@ export async function browse(profile: Profile, query: Record<string, string>) {
   statuses?.forEach(s => { requestStatuses[s.to_user] = s.status; });
 
   return {
-    profiles: shuffled,
-    hasMore: offset + limit < candidates.length,
+    profiles: selected,
+    hasMore: candidates.length > limit,
     requestStatuses,
     poolSize: candidates.length,
     filtersActive: hasBrowseQueryFilters(query),
