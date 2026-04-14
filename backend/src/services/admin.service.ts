@@ -5,12 +5,32 @@ import { uuidSchema } from '../utils/validation.js';
 import { securityLog } from '../utils/logger.js';
 import type { Profile } from '../types/index.js';
 
-export async function listUsers() {
-  const { data } = await db
+const PAGE_SIZE = 50;
+
+export async function listUsers(page = 0, search = '') {
+  const from = page * PAGE_SIZE;
+  const to = from + PAGE_SIZE - 1;
+
+  let query = db
     .from('profiles')
-    .select(ADMIN_USER_COLUMNS)
-    .order('created_at', { ascending: false });
-  return { users: data || [] };
+    .select(ADMIN_USER_COLUMNS, { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(from, to);
+
+  if (search) {
+    query = query.ilike('riot_id', `%${search}%`);
+  }
+
+  const { data, count } = await query;
+  const total = count ?? 0;
+
+  return {
+    users: data || [],
+    total,
+    page,
+    pageSize: PAGE_SIZE,
+    totalPages: Math.ceil(total / PAGE_SIZE),
+  };
 }
 
 export async function listReports() {

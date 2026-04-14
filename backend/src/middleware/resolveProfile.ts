@@ -71,3 +71,19 @@ export async function requireProfile(req: Request, res: Response, next: NextFunc
     next();
   });
 }
+
+/**
+ * Requires the user to have an avatar_url set.
+ * Must come AFTER requireProfile in the middleware stack.
+ * Returns PROFILE_INCOMPLETE so the frontend can redirect to profile setup.
+ */
+export function requireAvatar(req: Request, res: Response, next: NextFunction): void {
+  if (!req.profile?.avatar_url) {
+    res.status(403).json({
+      code: 'PROFILE_INCOMPLETE',
+      error: 'A profile picture is required to use this feature.',
+    });
+    return;
+  }
+  next();
+}

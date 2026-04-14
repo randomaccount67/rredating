@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { requireAuth, adminGuard } from '../middleware/auth.js';
-import { resolveProfile, requireProfile } from '../middleware/resolveProfile.js';
+import { resolveProfile, requireProfile, requireAvatar } from '../middleware/resolveProfile.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 
 // Controllers
@@ -29,17 +29,17 @@ router.post('/api/upload',         ...protect, rateLimit('upload', 10, 60_000), 
 router.delete('/api/account',      ...protect, rateLimit('account-delete', 2, 60_000), user.deleteAccount);
 
 // ─── Match ─────────────────────────────────────────────────────
-router.get('/api/match',                ...protect, rateLimit('browse', 60, 60_000), match.browse);
-router.post('/api/match',               ...protect, rateLimit('match', 20, 3_600_000), match.sendRequest);
+router.get('/api/match',                ...protect, requireAvatar, rateLimit('browse', 60, 60_000), match.browse);
+router.post('/api/match',               ...protect, requireAvatar, rateLimit('match', 20, 3_600_000), match.sendRequest);
 router.delete('/api/match',             ...protect, match.unmatch);
 router.post('/api/match/respond',       ...protect, match.respond);
 router.post('/api/match/pass',          ...protect, match.pass);
 router.delete('/api/match/pass',        ...protect, match.deletePass);
 
 // ─── Social ────────────────────────────────────────────────────
-router.get('/api/inbox',                ...protect, social.listInbox);
-router.get('/api/messages',             ...protect, social.getMessages);
-router.post('/api/messages',            ...protect, rateLimit('messages', 30, 60_000), social.sendMessage);
+router.get('/api/inbox',                ...protect, requireAvatar, social.listInbox);
+router.get('/api/messages',             ...protect, requireAvatar, social.getMessages);
+router.post('/api/messages',            ...protect, requireAvatar, rateLimit('messages', 30, 60_000), social.sendMessage);
 router.get('/api/notifications',        ...protect, social.listNotifications);
 router.post('/api/notifications/read',  ...protect, social.markNotificationsRead);
 router.post('/api/presence',            ...protect, social.heartbeat);

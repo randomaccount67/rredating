@@ -118,6 +118,14 @@ export default function MatchPage() {
           setProfiles([]);
           return;
         }
+        if (res.status === 403) {
+          const body = await res.json().catch(() => ({}));
+          if (body.code === 'PROFILE_INCOMPLETE') {
+            setNeedsOnboarding(true);
+            setProfiles([]);
+            return;
+          }
+        }
         throw new Error(
           res.status === 401 ? 'Sign in again (session invalid).' : `Server returned ${res.status}.`,
         );
@@ -302,17 +310,17 @@ export default function MatchPage() {
       {needsOnboarding && !loading && (
         <div className="text-center py-16 max-w-md mx-auto px-2">
           <p className="font-extrabold text-2xl uppercase text-[#E8EAF0] mb-3" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
-            PROFILE REQUIRED
+            PROFILE INCOMPLETE
           </p>
           <p className="text-[#8B90A8] text-sm mb-6 leading-relaxed">
-            You need to set up your profile before you can browse. It only takes a minute.
+            You need a profile picture before you can browse. Upload one in your profile settings.
           </p>
           <Link
-            href="/onboarding"
+            href="/profile"
             className="inline-flex items-center justify-center px-6 py-3 bg-[#FF4655] text-white font-bold text-sm uppercase tracking-wider hover:bg-[#FF5F6D] transition-colors"
             style={{ fontFamily: 'Barlow Condensed, sans-serif', clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}
           >
-            SET UP PROFILE
+            GO TO PROFILE
           </Link>
         </div>
       )}

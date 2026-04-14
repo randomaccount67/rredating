@@ -59,13 +59,18 @@ export default function InboxPage() {
         const data = await res.json();
         setItems(data.items);
         if (data.my_profile_id) setMyProfileId(data.my_profile_id);
+      } else if (res.status === 403) {
+        const body = await res.json().catch(() => ({}));
+        if (body.code === 'PROFILE_INCOMPLETE') {
+          router.replace('/profile');
+        }
       }
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     fetchInbox(true);

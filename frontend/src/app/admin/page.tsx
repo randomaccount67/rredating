@@ -12,6 +12,7 @@ import {
   MessageSquare,
   X,
   Search,
+  ChevronLeft,
 } from "lucide-react";
 import VerifiedBadge from "@/components/shared/VerifiedBadge";
 
@@ -82,35 +83,58 @@ export default function AdminPage() {
   } | null>(null);
   const [msgLoading, setMsgLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(0);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
 
-  const load = useCallback(async () => {
+  const loadUsers = useCallback(async (pageNum: number, search: string) => {
     setLoading(true);
     try {
-      const [usersRes, reportsRes] = await Promise.all([
-        api("/api/admin/users"),
-        api("/api/admin/reports"),
-      ]);
-
-      if (usersRes.status === 403 || reportsRes.status === 403) {
-        router.replace("/");
-        return;
-      }
-      if (!usersRes.ok || !reportsRes.ok) throw new Error("Failed to load");
-
-      const usersData = await usersRes.json();
-      const reportsData = await reportsRes.json();
-      setUsers(usersData.users ?? []);
-      setReports(reportsData.reports ?? []);
+      const params = new URLSearchParams({ page: String(pageNum) });
+      if (search) params.set('search', search);
+      const res = await api(`/api/admin/users?${params}`);
+      if (res.status === 403) { router.replace("/"); return; }
+      if (!res.ok) throw new Error("Failed to load");
+      const data = await res.json();
+      setUsers(data.users ?? []);
+      setTotalUsers(data.total ?? 0);
+      setTotalPages(data.totalPages ?? 0);
     } catch {
-      setError("Failed to load admin data.");
+      setError("Failed to load users.");
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, [router, api]);
+
+  const loadReports = useCallback(async () => {
+    try {
+      const res = await api("/api/admin/reports");
+      if (res.status === 403) { router.replace("/"); return; }
+      if (!res.ok) throw new Error("Failed to load");
+      const data = await res.json();
+      setReports(data.reports ?? []);
+    } catch {
+      setError("Failed to load reports.");
+    }
+  }, [router, api]);
+
+  // Debounce search — wait 400ms before firing API call
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setPage(0);
+      loadUsers(0, searchQuery);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery, loadUsers]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    loadUsers(page, searchQuery);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
+
+  useEffect(() => {
+    loadReports();
+  }, [loadReports]);
 
   const handleBan = async (profileId: string, ban: boolean) => {
     setActionLoading(profileId);
@@ -192,15 +216,6 @@ export default function AdminPage() {
 
   const unreviewedReports = reports.filter((r) => !r.reviewed);
 
-  const filteredUsers = searchQuery.trim()
-    ? (() => {
-        const q = searchQuery.trim().toLowerCase();
-        return users.filter(u =>
-          (u.riot_id && `${u.riot_id}#${u.riot_tag}`.toLowerCase().includes(q)) ||
-          u.id.toLowerCase().includes(q)
-        );
-      })()
-    : users;
   const userReports = selectedUser
     ? reports.filter((r) => r.reported_id === selectedUser.id)
     : [];
@@ -230,7 +245,7 @@ export default function AdminPage() {
           ADMIN CONSOLE
         </h1>
         <div className="flex gap-4 mt-2 font-mono text-[10px] text-[#525566]">
-          <span>{users.length} USERS</span>
+          <span>{totalUsers} USERS</span>
           <span>{reports.length} REPORTS</span>
           <span
             className={unreviewedReports.length > 0 ? "text-[#FF4655]" : ""}
@@ -341,7 +356,7 @@ export default function AdminPage() {
                 All Users
               </span>
               <span className="font-mono text-[9px] text-[#525566] ml-auto">
-                {filteredUsers.length}/{users.length}
+                {totalUsers} total
               </span>
             </div>
             <div className="relative">
@@ -355,13 +370,20 @@ export default function AdminPage() {
               />
             </div>
           </div>
-          <div className="divide-y divide-[#2A2D35] max-h-[560px] overflow-y-auto">
-            {filteredUsers.length === 0 && (
+          <div className="divide-y divide-[#2A2D35] max-h-[460px] overflow-y-auto">
+            {users.length === 0 && !loading && (
               <div className="px-4 py-6 text-center">
-                <p className="font-mono text-[10px] text-[#525566]">No users match "{searchQuery}"</p>
+                <p className="font-mono text-[10px] text-[#525566]">
+                  {searchQuery ? `No users match "${searchQuery}"` : 'No users found'}
+                </p>
               </div>
             )}
-            {filteredUsers.map((u) => {
+            {loading && users.length === 0 && (
+              <div className="px-4 py-6 text-center">
+                <p className="font-mono text-[10px] text-[#525566]">Loading...</p>
+              </div>
+            )}
+            {users.map((u) => {
               const name = u.riot_id
                 ? `${u.riot_id}#${u.riot_tag}`
                 : "NO PROFILE";
@@ -423,6 +445,28 @@ export default function AdminPage() {
               );
             })}
           </div>
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="px-4 py-2 border-t border-[#2A2D35] flex items-center justify-between gap-2">
+              <button
+                disabled={page === 0 || loading}
+                onClick={() => setPage(p => Math.max(0, p - 1))}
+                className="font-mono text-[10px] text-[#525566] hover:text-[#E8EAF0] border border-[#2A2D35] px-2 py-1 transition-colors disabled:opacity-30 flex items-center gap-1"
+              >
+                <ChevronLeft size={10} /> PREV
+              </button>
+              <span className="font-mono text-[9px] text-[#525566]">
+                {page + 1} / {totalPages}
+              </span>
+              <button
+                disabled={page >= totalPages - 1 || loading}
+                onClick={() => setPage(p => p + 1)}
+                className="font-mono text-[10px] text-[#525566] hover:text-[#E8EAF0] border border-[#2A2D35] px-2 py-1 transition-colors disabled:opacity-30 flex items-center gap-1"
+              >
+                NEXT <ChevronRight size={10} />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* User detail panel */}

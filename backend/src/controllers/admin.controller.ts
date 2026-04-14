@@ -2,8 +2,10 @@ import { Request, Response } from 'express';
 import * as adminService from '../services/admin.service.js';
 import { wrap } from '../utils/handler.js';
 
-export const listUsers = wrap(async (_req: Request, res: Response) => {
-  const result = await adminService.listUsers();
+export const listUsers = wrap(async (req: Request, res: Response) => {
+  const page = Math.max(0, parseInt(req.query.page as string ?? '0', 10) || 0);
+  const search = ((req.query.search as string) ?? '').trim().slice(0, 100);
+  const result = await adminService.listUsers(page, search);
   res.json(result);
 });
 

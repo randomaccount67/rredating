@@ -5,6 +5,7 @@ import OnlineIndicator from '@/components/shared/OnlineIndicator';
 import BadgesRow from '@/components/shared/BadgesRow';
 import UsernameDisplay from '@/components/shared/UsernameDisplay';
 import ProfileBanner from '@/components/shared/ProfileBanner';
+import ProfileBorder from '@/components/shared/ProfileBorder';
 
 interface ProfileModalProps {
   profile: Profile;
@@ -44,8 +45,14 @@ export default function ProfileModal({ profile, onClose, onSendRequest, onPass, 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/88 backdrop-blur-sm" />
+      {/* ProfileBorder must NOT have overflow-hidden — it uses box-shadow for glow animations */}
+      <ProfileBorder
+        border={profile.profile_border ?? 'none'}
+        color={profile.profile_border_color ?? accentColor}
+        className="relative w-full max-w-lg"
+      >
       <div
-        className="relative w-full max-w-lg bg-[#1B1814] border-2 border-[#2F2B24] overflow-hidden max-h-[92vh] overflow-y-auto"
+        className="bg-[#1B1814] border-2 border-[#2F2B24] overflow-hidden max-h-[92vh] overflow-y-auto"
         style={{ borderTop: `3px solid ${accentColor}`, boxShadow: '8px 8px 0px rgba(0,0,0,0.6)' }}
         onClick={e => e.stopPropagation()}
       >
@@ -230,6 +237,7 @@ export default function ProfileModal({ profile, onClose, onSendRequest, onPass, 
           )}
         </div>
       </div>
+      </ProfileBorder>
     </div>
   );
 }
