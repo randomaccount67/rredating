@@ -310,16 +310,18 @@ export default function AdminPage() {
                     <MessageSquare size={10} /> MSGS
                   </button>
                   <button
-                    onClick={() => {
-                      const u = users.find((u) => u.id.toLowerCase() === r.reported_id.toLowerCase());
-                      if (u) {
-                        setSelectedUser(u);
-                      } else {
-                        console.warn(
-                          "Reported user not found in users list:",
-                          r.reported_id,
-                        );
-                      }
+                    onClick={async () => {
+                      // Check the current page first (O(n) but n ≤ 50)
+                      const local = users.find(u => u.id === r.reported_id);
+                      if (local) { setSelectedUser(local); return; }
+                      // User is on a different page — fetch by UUID directly
+                      try {
+                        const res = await api(`/api/admin/users?search=${encodeURIComponent(r.reported_id)}`);
+                        if (res.ok) {
+                          const data = await res.json();
+                          if (data.users?.length > 0) setSelectedUser(data.users[0]);
+                        }
+                      } catch { /* no-op */ }
                     }}
                     className="font-mono text-[10px] text-[#8B8FA8] hover:text-[#E8EAF0] border border-[#2A2D35] px-2 py-1 transition-colors"
                   >

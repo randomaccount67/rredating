@@ -41,7 +41,12 @@ interface RateLimitEntry {
 
 const memoryLimiters = new Map<string, Map<string, RateLimitEntry>>();
 
-function memoryLimit(scope: string, max: number, windowMs: number, userId: string): boolean {
+interface MemoryLimitResult {
+  allowed: boolean;
+  retryAfterSeconds: number;
+}
+
+function memoryLimit(scope: string, max: number, windowMs: number, userId: string): MemoryLimitResult {
   if (!memoryLimiters.has(scope)) {
     memoryLimiters.set(scope, new Map());
   }
@@ -52,13 +57,15 @@ function memoryLimit(scope: string, max: number, windowMs: number, userId: strin
 
   if (!entry || now >= entry.resetAt) {
     store.set(userId, { count: 1, resetAt: now + windowMs });
-    return true; // allowed
+    return { allowed: true, retryAfterSeconds: 0 };
   }
 
-  if (entry.count >= max) return false; // blocked
+  if (entry.count >= max) {
+    return { allowed: false, retryAfterSeconds: Math.max(1, Math.ceil((entry.resetAt - now) / 1000)) };
+  }
 
   entry.count++;
-  return true; // allowed
+  return { allowed: true, retryAfterSeconds: 0 };
 }
 
 // Periodic sweep — prevents unbounded memory growth
@@ -104,16 +111,21 @@ export function rateLimit(scope: string, max: number, windowMs: number = 60_000)
         res.setHeader('X-RateLimit-Reset', reset);
 
         if (!success) {
+          const retryAfterSeconds = Math.max(1, Math.ceil((reset - Date.now()) / 1000));
           res.status(429).json({
-            error: `Rate limit exceeded. Max ${max} requests per ${windowMs / 1000}s.`,
+            code: 'RATE_LIMITED',
+            error: `You are doing that too fast. Try again in ${retryAfterSeconds} second${retryAfterSeconds !== 1 ? 's' : ''}.`,
+            retryAfterSeconds,
           });
           return;
         }
       } else {
-        const allowed = memoryLimit(scope, max, windowMs, userId);
-        if (!allowed) {
+        const result = memoryLimit(scope, max, windowMs, userId);
+        if (!result.allowed) {
           res.status(429).json({
-            error: `Rate limit exceeded. Max ${max} requests per ${windowMs / 1000}s.`,
+            code: 'RATE_LIMITED',
+            error: `You are doing that too fast. Try again in ${result.retryAfterSeconds} second${result.retryAfterSeconds !== 1 ? 's' : ''}.`,
+            retryAfterSeconds: result.retryAfterSeconds,
           });
           return;
         }

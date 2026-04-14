@@ -1,6 +1,7 @@
 'use client';
 import { createClient } from '@/lib/supabase';
 import { useCallback } from 'react';
+import { useToast } from '@/components/shared/ToastContext';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/$/, '');
 
@@ -20,6 +21,8 @@ const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').rep
  *   await api('/api/upload', { method: 'POST', body: formData }); // Content-Type set by browser
  */
 export function useApi() {
+  const { showToast } = useToast();
+
   return useCallback(
     async (path: string, options?: RequestInit) => {
       const supabase = createClient();
@@ -34,7 +37,7 @@ export function useApi() {
       const token = session?.access_token;
       const isFormData = options?.body instanceof FormData;
 
-      return fetch(`${API_URL}${path}`, {
+      const response = await fetch(`${API_URL}${path}`, {
         ...options,
         headers: {
           ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
@@ -42,7 +45,15 @@ export function useApi() {
           ...options?.headers,
         },
       });
+
+      // Surface rate limit errors as a toast so users get clear feedback
+      if (response.status === 429) {
+        const body = await response.clone().json().catch(() => ({}));
+        showToast(body.error ?? 'You are doing that too fast. Please slow down.', 'error');
+      }
+
+      return response;
     },
-    [],
+    [showToast],
   );
 }

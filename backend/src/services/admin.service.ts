@@ -107,26 +107,24 @@ export async function toggleBan(adminProfile: Profile, targetId: string, ban: bo
 
 export async function viewConversation(userA: string, userB: string) {
   if (!userA || !userB) throw badRequest('user_a and user_b are required');
-  // H5 fix: Validate UUID format before interpolating into filter string
   const parsedA = uuidSchema.safeParse(userA);
   const parsedB = uuidSchema.safeParse(userB);
   if (!parsedA.success || !parsedB.success) throw badRequest('Invalid user ID format');
 
-  // ── Path 1: look up via the conversations table ───────────────────────────
-  // Covers the normal case and handles duplicate conversation records from old bugs.
-  const { data: convRows } = await db
-    .from('conversations')
-    .select('id')
-    .or(`and(user_a.eq.${userA},user_b.eq.${userB}),and(user_a.eq.${userB},user_b.eq.${userA})`);
+  // ── Path 1: two simple equality queries instead of a nested or() ──────────
+  // Avoids PostgREST nested AND/OR syntax which can silently return no rows.
+  const [convABRes, convBARes] = await Promise.all([
+    db.from('conversations').select('id').eq('user_a', userA).eq('user_b', userB),
+    db.from('conversations').select('id').eq('user_a', userB).eq('user_b', userA),
+  ]);
 
-  const convIdSet = new Set<string>(convRows?.map((c: any) => c.id) ?? []);
+  const convIdSet = new Set<string>();
+  convABRes.data?.forEach((c: any) => convIdSet.add(c.id));
+  convBARes.data?.forEach((c: any) => convIdSet.add(c.id));
 
-  // ── Path 2: supplemental lookup via the messages table ────────────────────
-  // Recovers conversation IDs even when the conversations record was deleted.
-  // Strategy: find all conv IDs where userA OR userB sent a message, then keep
-  // only those conv IDs where at least one of these is true:
-  //   (a) both users sent messages in it (proves shared conversation), OR
-  //   (b) the conversation already appeared in Path 1 (record may still exist)
+  // ── Path 2: message-table fallback ───────────────────────────────────────
+  // Works even when the conversation row was deleted after an unmatch, as long
+  // as the messages themselves still exist.
   const { data: msgRows } = await db
     .from('messages')
     .select('conversation_id, sender_id')
@@ -139,8 +137,9 @@ export async function viewConversation(userA: string, userB: string) {
     const bIds = new Set<string>(
       msgRows.filter((m: any) => m.sender_id === userB).map((m: any) => m.conversation_id),
     );
+    // Include a conv ID if both users sent messages in it, or it was already
+    // found via the conversations table (one-sided message is still valid).
     for (const id of aIds) {
-      // Add if both users have messages (proven shared conv), or conv exists in table
       if (bIds.has(id) || convIdSet.has(id)) convIdSet.add(id);
     }
     for (const id of bIds) {
@@ -150,9 +149,7 @@ export async function viewConversation(userA: string, userB: string) {
 
   if (convIdSet.size === 0) return { messages: [], found: false };
 
-  // ── Fetch all messages across every found conversation ────────────────────
-  // Filter to sender_id in [userA, userB] — prevents leaking messages from
-  // unrelated participants if a conversation_id somehow matched unexpectedly.
+  // ── Fetch all messages, ordered ascending so the log reads chronologically ─
   const { data: messages } = await db
     .from('messages')
     .select('id, sender_id, content, created_at')
@@ -160,5 +157,5 @@ export async function viewConversation(userA: string, userB: string) {
     .in('sender_id', [userA, userB])
     .order('created_at', { ascending: true });
 
-  return { messages: messages || [], found: messages && messages.length > 0 };
+  return { messages: messages || [], found: (messages?.length ?? 0) > 0 };
 }
