@@ -527,13 +527,12 @@ export default function MatchPage() {
           >
 
           {/* Avatar */}
-          <div className="relative w-full bg-[#11141B] overflow-hidden"
-            style={{ maxHeight: '340px', height: '340px' }}>
+          <div className="relative w-full aspect-square bg-[#11141B] overflow-hidden">
             {currentProfile.avatar_url ? (
               <img
                 src={currentProfile.avatar_url}
                 alt={currentProfile.riot_id ?? ''}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover object-top"
                 loading="lazy"
                 decoding="async"
               />
