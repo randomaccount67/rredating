@@ -39,6 +39,9 @@ export const metadata: Metadata = {
     description: 'a (totally not serious) community edating site. find your edate here so you stop dropping your ep 7 immortal buddy in swiftplay',
     images: ['/og-image.png'],
   },
+  other: {
+    'google-adsense-account': 'ca-pub-3372655049477207',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
