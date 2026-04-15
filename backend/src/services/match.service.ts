@@ -76,16 +76,33 @@ function filterBrowseCandidates(rows: Profile[], query: Record<string, string>):
  * When includePassed=true the passes table is still fetched but not applied to the
  * exclude set — the user explicitly requested to see profiles they passed on.
  */
-async function browseFromProfilesTable(profile: Profile, includePassed = false) {
+interface ExcludeSet {
+  exclude: Set<string>;
+  passes: number;
+  reqOut: number;
+  reqIn: number;
+  blocks: number;
+}
+
+/**
+ * Builds the set of profile IDs the viewer must never see in browse.
+ *
+ * Exclusion rules:
+ *  - Passes written by the viewer (skipped by the viewer) — unless includePassed=true
+ *  - ACTIVE (pending/matched) outgoing requests from viewer to candidate
+ *  - ACTIVE (pending/matched) incoming requests from candidate to viewer
+ *  - Blocks in either direction
+ *
+ * Declined requests are intentionally NOT excluded: they should allow the candidate
+ * to reappear so the viewer can revisit or the candidate can try again.
+ *
+ * This function is intentionally separate from the profile-fetch so the same exclude
+ * set can be applied to both the RPC path and the TS fallback path.
+ */
+async function buildBrowseExcludeSet(profile: Profile, includePassed: boolean): Promise<ExcludeSet | null> {
   const [passesRes, reqOutRes, reqInRes, blockOutRes, blockInRes] = await Promise.all([
     db.from('passes').select('to_user').eq('from_user', profile.id),
-    // Only exclude ACTIVE (pending/matched) outgoing requests — declined requests must not
-    // cause permanent invisibility of the target in the viewer's feed.
     db.from('match_requests').select('to_user').eq('from_user', profile.id).in('status', ['pending', 'matched']),
-    // Only exclude ACTIVE (pending/matched) incoming requests — if a viewer declined a
-    // request, the requester must be able to reappear in browse. Without this filter,
-    // every declined request permanently removes that user from the viewer's pool,
-    // causing established users to approach zero visibility as their history grows.
     db.from('match_requests').select('from_user').eq('to_user', profile.id).in('status', ['pending', 'matched']),
     db.from('blocked_users').select('blocked_id').eq('blocker_id', profile.id),
     db.from('blocked_users').select('blocker_id').eq('blocked_id', profile.id),
@@ -93,12 +110,11 @@ async function browseFromProfilesTable(profile: Profile, includePassed = false) 
 
   const prefetchErr = passesRes.error || reqOutRes.error || reqInRes.error || blockOutRes.error || blockInRes.error;
   if (prefetchErr) {
-    console.error('[browse:ts] prefetch error', prefetchErr);
-    return { data: null as Profile[] | null, error: prefetchErr };
+    console.error('[browse] exclude set fetch error', prefetchErr);
+    return null; // caller treats null as a hard failure and returns empty
   }
 
   const exclude = new Set<string>();
-  // Only exclude passes when not in includePassed mode
   if (!includePassed) {
     passesRes.data?.forEach(r => exclude.add(r.to_user));
   }
@@ -107,6 +123,20 @@ async function browseFromProfilesTable(profile: Profile, includePassed = false) 
   blockOutRes.data?.forEach(r => exclude.add(r.blocked_id));
   blockInRes.data?.forEach(r => exclude.add(r.blocker_id));
 
+  return {
+    exclude,
+    passes: passesRes.data?.length ?? 0,
+    reqOut: reqOutRes.data?.length ?? 0,
+    reqIn: reqInRes.data?.length ?? 0,
+    blocks: (blockOutRes.data?.length ?? 0) + (blockInRes.data?.length ?? 0),
+  };
+}
+
+/**
+ * Fetches the raw profile pool from the profiles table and applies the pre-built
+ * exclude set. Caller is responsible for building the exclude set via buildBrowseExcludeSet.
+ */
+async function browseFromProfilesTable(profile: Profile, excludeSet: ExcludeSet): Promise<Profile[]> {
   const { data: rows, error } = await db
     .from('profiles')
     .select(BROWSE_COLUMNS)
@@ -120,56 +150,69 @@ async function browseFromProfilesTable(profile: Profile, includePassed = false) 
 
   if (error) {
     console.error('[browse:ts] profiles query error', error);
-    return { data: null, error };
+    return [];
   }
 
   const list = (rows as Profile[] | null) ?? [];
-  const afterExclusion = list.filter(p => !exclude.has(p.id));
+  const afterExclusion = list.filter(p => !excludeSet.exclude.has(p.id));
 
   console.log(
     `[browse:ts] viewer=${profile.id} ` +
-    `total=${list.length} excluded=${exclude.size} ` +
-    `(passes=${passesRes.data?.length ?? 0} ` +
-    `reqOut=${reqOutRes.data?.length ?? 0} ` +
-    `reqIn=${reqInRes.data?.length ?? 0} ` +
-    `blocks=${(blockOutRes.data?.length ?? 0) + (blockInRes.data?.length ?? 0)}) ` +
+    `total=${list.length} excluded=${excludeSet.exclude.size} ` +
+    `(passes=${excludeSet.passes} reqOut=${excludeSet.reqOut} ` +
+    `reqIn=${excludeSet.reqIn} blocks=${excludeSet.blocks}) ` +
     `remaining=${afterExclusion.length}`
   );
 
-  return { data: afterExclusion.slice(0, 3000), error: null };
+  return afterExclusion.slice(0, 3000);
 }
 
 async function loadBrowseCandidates(profile: Profile, includePassed = false): Promise<Profile[]> {
-  // When includePassed=true, skip the RPC (which always excludes passes internally) and
-  // go straight to the TS path where we can honour the includePassed flag.
   if (!includePassed) {
-    const rpc = await db
-      .rpc('get_browseable_profiles', { viewer_id: profile.id })
-      .select(BROWSE_COLUMNS);
+    // Build the exclude set and call the RPC in PARALLEL — zero extra latency.
+    // The exclude set is applied to RPC results so that the TS exclusion rules
+    // are always enforced regardless of what the RPC SQL does. This prevents
+    // profiles with active outgoing requests (or other excluded states) from
+    // appearing in the feed just because the RPC SQL is not perfectly in sync.
+    const [excludeResult, rpc] = await Promise.all([
+      buildBrowseExcludeSet(profile, includePassed),
+      db.rpc('get_browseable_profiles', { viewer_id: profile.id }).select(BROWSE_COLUMNS),
+    ]);
 
-    const fromRpc = (!rpc.error && rpc.data ? (rpc.data as Profile[]) : [])
-      .filter(p => p.avatar_url);
+    if (!excludeResult) return []; // exclude set fetch failed — fail safe
 
     if (rpc.error) {
       console.error(`[browse:rpc] error for viewer=${profile.id}`, rpc.error.message, rpc.error.code);
       securityLog.browseRpcFailed(profile.id, rpc.error.message, rpc.error.code);
     }
 
+    // Apply TS exclude set on top of whatever the RPC returned.
+    const rpcRaw = (!rpc.error && rpc.data ? (rpc.data as Profile[]) : []).filter(p => p.avatar_url);
+    const fromRpc = rpcRaw.filter(p => !excludeResult.exclude.has(p.id));
+
     if (fromRpc.length > 0) {
-      console.log(`[browse:rpc] viewer=${profile.id} returned=${fromRpc.length} (using RPC path)`);
+      console.log(
+        `[browse:rpc] viewer=${profile.id} ` +
+        `rpc_raw=${rpcRaw.length} after_exclusion=${fromRpc.length} ` +
+        `(passes=${excludeResult.passes} reqOut=${excludeResult.reqOut} ` +
+        `reqIn=${excludeResult.reqIn} blocks=${excludeResult.blocks})`
+      );
       return fromRpc;
     }
 
-    // RPC returned 0 rows — fall through to TS path. Note: if the RPC SQL still uses
-    // the old unfiltered match_requests join, users on the RPC path will still see the
-    // exclusion bug. Apply the SQL migration in the README to fix the RPC function.
-    console.log(`[browse:rpc] viewer=${profile.id} returned 0 rows — falling back to TS path`);
+    // RPC returned zero usable rows — use TS profiles-table path with the
+    // already-built exclude set (no extra DB round-trip).
+    console.log(
+      `[browse:rpc] viewer=${profile.id} rpc_raw=${rpcRaw.length} ` +
+      `after_exclusion=0 — falling back to TS path`
+    );
+    return browseFromProfilesTable(profile, excludeResult);
   }
 
-  // TS fallback: applies correct status-filtered exclusion logic.
-  const fb = await browseFromProfilesTable(profile, includePassed);
-  if (fb.error || !fb.data) return [];
-  return fb.data as Profile[];
+  // includePassed=true: always use TS path (RPC can't honour this flag).
+  const excludeResult = await buildBrowseExcludeSet(profile, includePassed);
+  if (!excludeResult) return [];
+  return browseFromProfilesTable(profile, excludeResult);
 }
 
 export async function browse(profile: Profile, query: Record<string, string>) {
@@ -213,7 +256,8 @@ export async function browse(profile: Profile, query: Record<string, string>) {
     .from('match_requests')
     .select('to_user, status')
     .eq('from_user', profile.id)
-    .in('to_user', ids);
+    .in('to_user', ids)
+    .in('status', ['pending', 'matched']);
 
   const requestStatuses: Record<string, string> = {};
   statuses?.forEach(s => { requestStatuses[s.to_user] = s.status; });
