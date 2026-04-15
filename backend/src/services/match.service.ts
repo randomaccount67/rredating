@@ -240,12 +240,18 @@ export async function browse(profile: Profile, query: Record<string, string>) {
     };
   }
 
-  // Weighted random ordering: supporters get +2 boost, verified +1.
-  // Sorting the whole pool means every refresh produces a different order while
-  // supporters and verified users still float toward the top on average.
+  // Weighted random ordering: supporters get a +0.3 boost, verified +0.15.
+  // Boosts are kept below 1 so they never override the random component —
+  // every eligible user has a real chance to appear, but supporters and verified
+  // users float toward the top on average across many refreshes.
+  //
+  // Previous values (+2 / +1) caused full starvation: any supporter score (2–3)
+  // was guaranteed to exceed any regular user score (0–1), so once ≥ limit
+  // supporters existed in the pool, regular users were permanently excluded from
+  // all browse feeds and could never receive requests.
   const scored = candidates.map(p => ({
     profile: p,
-    score: Math.random() + (p.is_supporter ? 2 : 0) + (p.is_verified ? 1 : 0),
+    score: Math.random() + (p.is_supporter ? 0.3 : 0) + (p.is_verified ? 0.15 : 0),
   }));
   scored.sort((a, b) => b.score - a.score);
 
