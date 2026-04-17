@@ -9,6 +9,7 @@ import BadgesRow from '@/components/shared/BadgesRow';
 import UsernameDisplay from '@/components/shared/UsernameDisplay';
 import { useApi } from '@/lib/api';
 import Link from 'next/link';
+import SpotifyPlayer from '@/components/profile/SpotifyPlayer';
 
 const RANKS_TIERS = ['Any', 'Unranked', 'Iron', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Ascendant', 'Immortal', 'Radiant'];
 
@@ -661,6 +662,14 @@ export default function MatchPage() {
               <p className="text-[#8B90A8] text-xs mb-4 leading-relaxed border-l-2 border-[#00E5FF]/30 pl-3">
                 {currentProfile.about}
               </p>
+            )}
+
+            {/* Spotify embed */}
+            {currentProfile.is_supporter && currentProfile.profile_music_url && (
+              <div className="mb-4">
+                <p className="font-mono text-[9px] tracking-widest uppercase text-[#525566] mb-1.5">♫ their vibe</p>
+                <SpotifyPlayer trackUrl={currentProfile.profile_music_url} />
+              </div>
             )}
 
             {/* Action buttons */}
