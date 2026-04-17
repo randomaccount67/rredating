@@ -17,10 +17,10 @@ const cspHeader = [
   `img-src 'self' data: blob: https://${supabaseHost} https://*.supabase.co https://*.supabase.in https://media.giphy.com https://media0.giphy.com https://media1.giphy.com https://media2.giphy.com https://media3.giphy.com https://media4.giphy.com https://i.giphy.com https://i.scdn.co`,
   // Supabase API + realtime WebSocket, Google OAuth, backend API
   `connect-src 'self' https://${supabaseHost} wss://${supabaseHost} https://*.supabase.co wss://*.supabase.co https://*.supabase.in wss://*.supabase.in https://accounts.google.com https://*.googleapis.com ${apiUrl}`,
-  // Spotify 30-second preview audio clips (p.scdn.co)
+  // Spotify embed iframe + audio (scdn.co for audio assets loaded by the embed)
   "media-src 'self' https://*.scdn.co",
-  // Google OAuth popup/redirect (Spotify embed removed — using custom player now)
-  "frame-src https://accounts.google.com",
+  // Google OAuth popup/redirect + Spotify embed iframe
+  "frame-src https://accounts.google.com https://open.spotify.com",
   "object-src 'none'",
   "base-uri 'self'",
 ].join('; ');

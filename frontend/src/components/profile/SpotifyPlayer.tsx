@@ -5,6 +5,7 @@ interface Props {
 }
 
 function extractTrackId(url: string): string | null {
+  // Match track ID up to any query/hash — [A-Za-z0-9]+ stops before '?' or '#'
   const m = url.match(/open\.spotify\.com\/track\/([A-Za-z0-9]+)/);
   return m?.[1] ?? null;
 }
