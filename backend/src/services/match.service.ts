@@ -146,7 +146,7 @@ async function browseFromProfilesTable(profile: Profile, excludeSet: ExcludeSet)
     .neq('avatar_url', '')
     .neq('id', profile.id)
     .order('created_at', { ascending: false })
-    .limit(5000);
+    .limit(10000);
 
   if (error) {
     console.error('[browse:ts] profiles query error', error);
@@ -164,7 +164,7 @@ async function browseFromProfilesTable(profile: Profile, excludeSet: ExcludeSet)
     `remaining=${afterExclusion.length}`
   );
 
-  return afterExclusion.slice(0, 3000);
+  return afterExclusion.slice(0, 10000);
 }
 
 async function loadBrowseCandidates(profile: Profile, includePassed = false): Promise<Profile[]> {

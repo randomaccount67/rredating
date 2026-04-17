@@ -297,7 +297,7 @@ begin
       select to_user from passes where from_user = viewer_id
     )
     and p.id not in (
-      select to_user from match_requests where from_user = viewer_id
+      select to_user from match_requests where from_user = viewer_id and status in ('pending', 'matched')
     )
     and p.id not in (
       select blocked_id from blocked_users where blocker_id = viewer_id
