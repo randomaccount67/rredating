@@ -121,6 +121,19 @@ export default function AdminPage() {
   const [warnSending, setWarnSending] = useState(false);
   const [warnSent, setWarnSent] = useState(false);
 
+  const loadWarningCounts = useCallback(async (userIds: string[]) => {
+    if (!userIds.length) return;
+    try {
+      const res = await api('/api/admin/warning-counts', {
+        method: 'POST',
+        body: JSON.stringify({ user_ids: userIds }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setWarningCounts(prev => ({ ...prev, ...(data.counts ?? {}) }));
+    } catch { /* non-critical */ }
+  }, [api]);
+
   const loadUsers = useCallback(async (pageNum: number, search: string) => {
     setLoading(true);
     try {
@@ -161,19 +174,6 @@ export default function AdminPage() {
       if (!res.ok) return;
       const data = await res.json();
       setAnnouncements(data.announcements ?? []);
-    } catch { /* non-critical */ }
-  }, [api]);
-
-  const loadWarningCounts = useCallback(async (userIds: string[]) => {
-    if (!userIds.length) return;
-    try {
-      const res = await api('/api/admin/warning-counts', {
-        method: 'POST',
-        body: JSON.stringify({ user_ids: userIds }),
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      setWarningCounts(prev => ({ ...prev, ...(data.counts ?? {}) }));
     } catch { /* non-critical */ }
   }, [api]);
 
