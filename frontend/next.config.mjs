@@ -13,12 +13,12 @@ const cspHeader = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   // Google Fonts files
   "font-src 'self' data: https://fonts.gstatic.com",
-  // Avatars from Supabase storage
-  `img-src 'self' data: blob: https://${supabaseHost} https://*.supabase.co https://*.supabase.in`,
+  // Avatars from Supabase storage + GIFs from Giphy
+  `img-src 'self' data: blob: https://${supabaseHost} https://*.supabase.co https://*.supabase.in https://media.giphy.com https://media0.giphy.com https://media1.giphy.com https://media2.giphy.com https://media3.giphy.com https://media4.giphy.com https://i.giphy.com`,
   // Supabase API + realtime WebSocket, Google OAuth, backend API
   `connect-src 'self' https://${supabaseHost} wss://${supabaseHost} https://*.supabase.co wss://*.supabase.co https://*.supabase.in wss://*.supabase.in https://accounts.google.com https://*.googleapis.com ${apiUrl}`,
-  // Google OAuth popup/redirect
-  "frame-src https://accounts.google.com",
+  // Google OAuth popup/redirect + Spotify profile music embed
+  "frame-src https://accounts.google.com https://open.spotify.com",
   "object-src 'none'",
   "base-uri 'self'",
 ].join('; ');

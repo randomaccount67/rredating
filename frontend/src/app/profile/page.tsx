@@ -131,7 +131,6 @@ function ProfilePageInner() {
   const [musicSettings, setMusicSettings] = useState({
     profile_music_url: '',
     profile_music_start: 0,
-    profile_music_volume: 15,
   });
 
   useEffect(() => {
@@ -189,7 +188,6 @@ function ProfilePageInner() {
             setMusicSettings({
               profile_music_url: p.profile_music_url ?? '',
               profile_music_start: p.profile_music_start ?? 0,
-              profile_music_volume: p.profile_music_volume ?? 15,
             });
           } else {
             router.replace('/onboarding');
@@ -272,7 +270,6 @@ function ProfilePageInner() {
           ? `https://open.spotify.com/track/${spotifyMatch[1]}`
           : (rawUrl === '' ? null : null); // only accept valid spotify URLs
         body.profile_music_start = musicSettings.profile_music_start;
-        body.profile_music_volume = musicSettings.profile_music_volume;
       }
 
       const res = await api('/api/profile', { method: 'PUT', body: JSON.stringify(body) });
@@ -664,19 +661,6 @@ function ProfilePageInner() {
                       max={600}
                       value={musicSettings.profile_music_start}
                       onChange={e => setMusicSettings(prev => ({ ...prev, profile_music_start: Number(e.target.value) }))}
-                      className="w-full accent-[#8B6FFF]"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-mono text-[9px] text-[#4A4440] uppercase tracking-widest block mb-1">
-                      VOLUME — {musicSettings.profile_music_volume}%
-                    </label>
-                    <input
-                      type="range"
-                      min={0}
-                      max={100}
-                      value={musicSettings.profile_music_volume}
-                      onChange={e => setMusicSettings(prev => ({ ...prev, profile_music_volume: Number(e.target.value) }))}
                       className="w-full accent-[#8B6FFF]"
                     />
                   </div>
