@@ -128,7 +128,7 @@ export default function ProfileModal({ profile, onClose, onSendRequest, onPass, 
           </div>
         </div>
 
-        {/* Profile Music — custom preview player right below the header */}
+        {/* Profile Music — compact Spotify embed right below the header */}
         {profile.is_supporter && profile.profile_music_url && (
           <div
             className="border-t-2 border-[#2F2B24]"
@@ -140,11 +140,9 @@ export default function ProfileModal({ profile, onClose, onSendRequest, onPass, 
                 ♫ their vibe
               </span>
             </div>
-            <SpotifyPlayer
-              trackUrl={profile.profile_music_url}
-              startTime={profile.profile_music_start ?? 0}
-              accentColor={accentColor}
-            />
+            <div className="px-4 pb-3">
+              <SpotifyPlayer trackUrl={profile.profile_music_url} />
+            </div>
           </div>
         )}
 

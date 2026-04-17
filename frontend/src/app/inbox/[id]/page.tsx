@@ -48,8 +48,10 @@ export default function MessageThreadPage() {
   const [unmatching, setUnmatching] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showGifPicker, setShowGifPicker] = useState(false);
+  const [showGifUpsell, setShowGifUpsell] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const gifUpsellRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -144,6 +146,18 @@ export default function MessageThreadPage() {
   useEffect(() => {
     scrollToBottom();
   }, [data?.messages.length, scrollToBottom]);
+
+  // Close upsell popup on outside click
+  useEffect(() => {
+    if (!showGifUpsell) return;
+    function handle(e: MouseEvent) {
+      if (gifUpsellRef.current && !gifUpsellRef.current.contains(e.target as Node)) {
+        setShowGifUpsell(false);
+      }
+    }
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, [showGifUpsell]);
 
   const handleSend = async () => {
     if (!message.trim() || sending) return;
@@ -502,7 +516,7 @@ export default function MessageThreadPage() {
         />
         {/* Emoji button — all users */}
         <button
-          onClick={() => { setShowGifPicker(false); setShowEmojiPicker(prev => !prev); }}
+          onClick={() => { setShowGifPicker(false); setShowGifUpsell(false); setShowEmojiPicker(prev => !prev); }}
           className="text-[#525566] hover:text-[#E8EAF0] transition-colors px-2 bg-[#1A1D24] border border-[#2A2D35] flex items-center"
           title="Emoji"
           aria-label="Emoji"
@@ -510,18 +524,44 @@ export default function MessageThreadPage() {
         >
           <Smile size={16} />
         </button>
-        {/* GIF button — supporters only */}
-        {data.my_is_supporter && (
+        {/* GIF button — visible to all; opens picker for supporters, upsell for others */}
+        <div className="relative" ref={gifUpsellRef}>
           <button
-            onClick={() => { setShowEmojiPicker(false); setShowGifPicker(prev => !prev); }}
-            className="text-[#525566] hover:text-[#00E5FF] transition-colors px-2.5 bg-[#1A1D24] border border-[#2A2D35] font-mono text-[10px] font-bold tracking-wider flex items-center"
-            title="Send GIF"
-            aria-label="Send GIF"
+            onClick={() => {
+              setShowEmojiPicker(false);
+              if (!data.my_is_supporter) {
+                setShowGifUpsell(prev => !prev);
+                return;
+              }
+              setShowGifUpsell(false);
+              setShowGifPicker(prev => !prev);
+            }}
+            className={`relative px-2.5 bg-[#1A1D24] border font-mono text-[10px] font-bold tracking-wider flex items-center h-full transition-colors ${
+              data.my_is_supporter
+                ? 'text-[#525566] hover:text-[#00E5FF] border-[#2A2D35]'
+                : 'text-[#525566]/50 border-[#2A2D35]/50 hover:border-[#525566]/50'
+            }`}
+            title={data.my_is_supporter ? 'Send GIF' : 'GIFs are a Supporter feature'}
+            aria-label={data.my_is_supporter ? 'Send GIF' : 'GIFs are a Supporter feature'}
             type="button"
           >
             GIF
+            {!data.my_is_supporter && (
+              <span className="absolute -top-1.5 -right-1.5 text-[9px] leading-none select-none">✨</span>
+            )}
           </button>
-        )}
+          {showGifUpsell && !data.my_is_supporter && (
+            <div
+              className="absolute bottom-full right-0 mb-2 z-50 bg-[#1A1D24] border border-[#00E5FF]/30 p-3 w-52"
+              style={{ clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}
+            >
+              <p className="font-mono text-[10px] text-[#E8EAF0] mb-2">GIFs are a Supporter feature ✨</p>
+              <Link href="/supporter" className="font-mono text-[10px] text-[#00E5FF] hover:underline" onClick={() => setShowGifUpsell(false)}>
+                Become a Supporter →
+              </Link>
+            </div>
+          )}
+        </div>
         <button
           onClick={handleSend}
           disabled={sending || !message.trim()}

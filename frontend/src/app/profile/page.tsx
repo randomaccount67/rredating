@@ -2,11 +2,15 @@
 import { useApi } from '@/lib/api';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Upload, Save, Check, AlertTriangle, UserX, Crown, Lock, ExternalLink, X, Eye } from 'lucide-react';
-import { RANKS, REGIONS, ROLES, MUSIC_TAGS, AGENTS, Profile } from '@/types';
+import { Upload, Save, Check, AlertTriangle, UserX, Crown, Lock, ExternalLink, X, Eye, Layers } from 'lucide-react';
+import { RANKS, REGIONS, ROLES, MUSIC_TAGS, AGENTS, Profile, getRankTier } from '@/types';
 import VerifiedBadge from '@/components/shared/VerifiedBadge';
 import SupporterBadge from '@/components/shared/SupporterBadge';
 import ProfileModal from '@/components/profile/ProfileModal';
+import ProfileBorder from '@/components/shared/ProfileBorder';
+import BadgesRow from '@/components/shared/BadgesRow';
+import UsernameDisplay from '@/components/shared/UsernameDisplay';
+import SpotifyPlayer from '@/components/profile/SpotifyPlayer';
 import { Suspense } from 'react';
 
 async function compressImage(file: File): Promise<File> {
@@ -111,6 +115,7 @@ function ProfilePageInner() {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [justSubscribed, setJustSubscribed] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [showBrowsePreview, setShowBrowsePreview] = useState(false);
 
   const [form, setForm] = useState({
     gender: '', gender_other: '',
@@ -268,8 +273,7 @@ function ProfilePageInner() {
         const spotifyMatch = rawUrl.match(/open\.spotify\.com\/track\/([A-Za-z0-9]+)/);
         body.profile_music_url = spotifyMatch
           ? `https://open.spotify.com/track/${spotifyMatch[1]}`
-          : (rawUrl === '' ? null : null); // only accept valid spotify URLs
-        body.profile_music_start = musicSettings.profile_music_start;
+          : null; // only accept valid spotify URLs
       }
 
       const res = await api('/api/profile', { method: 'PUT', body: JSON.stringify(body) });
@@ -649,21 +653,14 @@ function ProfilePageInner() {
                       value={musicSettings.profile_music_url}
                       onChange={e => setMusicSettings(prev => ({ ...prev, profile_music_url: e.target.value }))}
                     />
-                    <p className="font-mono text-[9px] text-[#4A4440] mt-1">Paste a Spotify track URL. Shown as a compact player on your profile.</p>
+                    <p className="font-mono text-[9px] text-[#4A4440] mt-1">Paste a Spotify track URL. Shows as a compact Spotify embed on your profile.</p>
                   </div>
-                  <div>
-                    <label className="font-mono text-[9px] text-[#4A4440] uppercase tracking-widest block mb-1">
-                      START TIME — {musicSettings.profile_music_start}s
-                    </label>
-                    <input
-                      type="range"
-                      min={0}
-                      max={600}
-                      value={musicSettings.profile_music_start}
-                      onChange={e => setMusicSettings(prev => ({ ...prev, profile_music_start: Number(e.target.value) }))}
-                      className="w-full accent-[#8B6FFF]"
-                    />
-                  </div>
+                  {musicSettings.profile_music_url.match(/open\.spotify\.com\/track\/[A-Za-z0-9]+/) && (
+                    <div className="space-y-1.5">
+                      <p className="font-mono text-[9px] text-[#4A4440] uppercase tracking-widest">PREVIEW</p>
+                      <SpotifyPlayer trackUrl={musicSettings.profile_music_url} />
+                    </div>
+                  )}
                   {musicSettings.profile_music_url && (
                     <button
                       type="button"
@@ -846,14 +843,22 @@ function ProfilePageInner() {
         )}
 
         {/* Save + Preview */}
-        <div className="flex gap-3">
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowBrowsePreview(true)}
+            className="flex items-center justify-center gap-1.5 px-3 py-3.5 font-black text-sm uppercase tracking-wider border-2 border-[#2F2B24] text-[#857A6A] hover:border-[#00E5FF]/40 hover:text-[#00E5FF] transition-all"
+            style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
+            title="Preview your Browse card"
+          >
+            <Layers size={14} /> BROWSE
+          </button>
           <button
             onClick={() => setShowPreview(true)}
-            className="flex items-center justify-center gap-2 px-4 py-3.5 font-black text-sm uppercase tracking-wider border-2 border-[#2F2B24] text-[#857A6A] hover:border-[#00E5FF]/40 hover:text-[#00E5FF] transition-all"
+            className="flex items-center justify-center gap-1.5 px-3 py-3.5 font-black text-sm uppercase tracking-wider border-2 border-[#2F2B24] text-[#857A6A] hover:border-[#00E5FF]/40 hover:text-[#00E5FF] transition-all"
             style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
-            title="Preview how your card looks to others"
+            title="Preview your full profile"
           >
-            <Eye size={16} /> PREVIEW
+            <Eye size={14} /> PROFILE
           </button>
           <button
             onClick={handleSave}
@@ -865,38 +870,189 @@ function ProfilePageInner() {
           </button>
         </div>
 
-        {/* Profile preview modal */}
-        {showPreview && profile && (
-          <ProfileModal
-            profile={{
-              ...profile,
-              riot_id: form.riot_id || profile.riot_id,
-              riot_tag: form.riot_tag || profile.riot_tag,
-              avatar_url: avatarPreview ?? profile.avatar_url,
-              about: form.about,
-              agents: form.agents,
-              role: form.role as Profile['role'],
-              current_rank: form.current_rank as Profile['current_rank'],
-              peak_rank: form.peak_rank as Profile['peak_rank'],
-              region: form.region as Profile['region'],
-              gender: form.gender === 'Other' ? (form.gender_other || 'Other') : form.gender,
-              age: form.age,
-              music_tags: form.music_tags as Profile['music_tags'],
-              favorite_artist: form.favorite_artist,
-              ...(isSupporter ? cosmetics : {}),
-              ...(isSupporter ? {
-                profile_music_url: musicSettings.profile_music_url.match(/open\.spotify\.com\/track\/[A-Za-z0-9]+/)
-                  ? musicSettings.profile_music_url
-                  : null,
-                profile_music_start: musicSettings.profile_music_start,
-              } : {}),
-            }}
-            onClose={() => setShowPreview(false)}
-            onSendRequest={() => {}}
-            onPass={() => {}}
-            viewOnly
-          />
-        )}
+        {/* Full profile preview modal */}
+        {showPreview && profile && (() => {
+          const previewProfile = {
+            ...profile,
+            riot_id: form.riot_id || profile.riot_id,
+            riot_tag: form.riot_tag || profile.riot_tag,
+            avatar_url: avatarPreview ?? profile.avatar_url,
+            about: form.about,
+            agents: form.agents,
+            role: form.role as Profile['role'],
+            current_rank: form.current_rank as Profile['current_rank'],
+            peak_rank: form.peak_rank as Profile['peak_rank'],
+            region: form.region as Profile['region'],
+            gender: form.gender === 'Other' ? (form.gender_other || 'Other') : form.gender,
+            age: form.age,
+            music_tags: form.music_tags as Profile['music_tags'],
+            favorite_artist: form.favorite_artist,
+            ...(isSupporter ? cosmetics : {}),
+            ...(isSupporter ? {
+              profile_music_url: musicSettings.profile_music_url.match(/open\.spotify\.com\/track\/[A-Za-z0-9]+/)
+                ? musicSettings.profile_music_url
+                : null,
+            } : {}),
+          };
+          return (
+            <ProfileModal
+              profile={previewProfile}
+              onClose={() => setShowPreview(false)}
+              onSendRequest={() => {}}
+              onPass={() => {}}
+              viewOnly
+            />
+          );
+        })()}
+
+        {/* Browse card preview modal */}
+        {showBrowsePreview && profile && (() => {
+          const p = {
+            ...profile,
+            riot_id: form.riot_id || profile.riot_id,
+            riot_tag: form.riot_tag || profile.riot_tag,
+            avatar_url: avatarPreview ?? profile.avatar_url,
+            about: form.about,
+            agents: form.agents,
+            role: form.role as Profile['role'],
+            current_rank: form.current_rank as Profile['current_rank'],
+            peak_rank: form.peak_rank as Profile['peak_rank'],
+            region: form.region as Profile['region'],
+            gender: form.gender === 'Other' ? (form.gender_other || 'Other') : form.gender,
+            age: form.age,
+            music_tags: form.music_tags as Profile['music_tags'],
+            favorite_artist: form.favorite_artist,
+            ...(isSupporter ? cosmetics : {}),
+            ...(isSupporter ? {
+              profile_music_url: musicSettings.profile_music_url.match(/open\.spotify\.com\/track\/[A-Za-z0-9]+/)
+                ? musicSettings.profile_music_url
+                : null,
+            } : {}),
+          };
+          const RANK_COLORS: Record<string, string> = {
+            unranked: '#525566', iron: '#8B8FA8', bronze: '#CD7F32', silver: '#C0C0C0', gold: '#FFD700',
+            platinum: '#00C8FF', diamond: '#A855F7', ascendant: '#22C55E', immortal: '#FF4655', radiant: '#FFE84D',
+          };
+          const accentC = p.profile_accent_color ?? (p.current_rank ? (RANK_COLORS[getRankTier(p.current_rank)] ?? '#FF4655') : '#FF4655');
+          const mc = accentC;
+          return (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/88 backdrop-blur-sm"
+              onClick={() => setShowBrowsePreview(false)}
+            >
+              <div className="w-full max-w-sm" onClick={e => e.stopPropagation()}>
+                {/* Label */}
+                <div className="flex items-center justify-between mb-3 px-1">
+                  <span className="font-mono text-[10px] text-[#525566] uppercase tracking-widest">BROWSE CARD PREVIEW</span>
+                  <button onClick={() => setShowBrowsePreview(false)} className="text-[#525566] hover:text-[#E8EAF0] transition-colors">
+                    <X size={14} />
+                  </button>
+                </div>
+                <ProfileBorder
+                  border={p.profile_border ?? 'none'}
+                  color={p.profile_border_color ?? accentC}
+                >
+                  <div className="bg-[#171A22] border border-[#252830]"
+                    style={{ clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%)' }}
+                  >
+                    {/* Avatar */}
+                    <div className="relative w-full aspect-square bg-[#11141B] overflow-hidden">
+                      {p.avatar_url ? (
+                        <img src={p.avatar_url} alt="" className="w-full h-full object-cover object-top" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center font-extrabold text-8xl text-[#2A2D35]"
+                          style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                          {p.riot_id?.[0]?.toUpperCase() ?? '?'}
+                        </div>
+                      )}
+                      {p.region && (
+                        <div className="absolute top-3 right-3 bg-[#11141B]/80 border border-[#252830] px-2 py-0.5">
+                          <span className="font-mono text-[10px] text-[#8B8FA8]">{p.region}</span>
+                        </div>
+                      )}
+                      {p.is_supporter && p.profile_music_url && (
+                        <div className="absolute bottom-3 left-3 flex flex-col items-start gap-1.5">
+                          <style>{`@keyframes eq-bar{0%,100%{transform:scaleY(.35)}50%{transform:scaleY(1)}}`}</style>
+                          <div className="flex items-end gap-[3px]" style={{ height: 16 }}>
+                            {[0, 0.18, 0.09, 0.27].map((delay, i) => (
+                              <span key={i} style={{
+                                width: 3, height: '100%', display: 'block',
+                                background: mc, borderRadius: 1, transformOrigin: 'bottom',
+                                animation: `eq-bar ${0.55 + i * 0.08}s ease-in-out ${delay}s infinite`,
+                                boxShadow: `0 0 6px ${mc}`,
+                              }} />
+                            ))}
+                          </div>
+                          <span className="font-mono text-[9px] tracking-widest uppercase px-1.5 py-0.5"
+                            style={{ color: mc, background: '#11141Bcc', textShadow: `0 0 8px ${mc}` }}>
+                            ♫ their vibe
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    {/* Info */}
+                    <div className="p-5">
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h2 className="font-extrabold text-2xl uppercase" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>
+                              <UsernameDisplay
+                                riotId={p.riot_id ?? null}
+                                riotTag={p.riot_tag ?? null}
+                                effect={p.username_effect ?? 'none'}
+                                accentColor={accentC}
+                                className="text-[#E8EAF0]"
+                              />
+                            </h2>
+                            <BadgesRow isVerified={p.is_verified} isSupporter={p.is_supporter} size={18} />
+                          </div>
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            {p.current_rank && (
+                              <span className="font-mono text-xs px-2 py-0.5 border"
+                                style={{ color: accentC, borderColor: accentC, backgroundColor: `${accentC}15` }}>
+                                {p.current_rank}
+                              </span>
+                            )}
+                            {p.role && (
+                              <span className="font-mono text-xs border px-2 py-0.5"
+                                style={{ color: accentC, borderColor: `${accentC}60` }}>
+                                {p.role}
+                              </span>
+                            )}
+                            {p.gender && (
+                              <span className="font-mono text-xs text-[#8B8FA8] border border-[#252830] px-2 py-0.5">{p.gender}</span>
+                            )}
+                            {p.age != null && (
+                              <span className="font-mono text-xs text-[#8B8FA8] border border-[#252830] px-2 py-0.5">{p.age}yo</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-[#525566] text-xs font-mono border border-[#252830] px-2 py-1">VIEW</span>
+                        </div>
+                      </div>
+                      {p.agents && p.agents.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-3">
+                          {p.agents.map(a => (
+                            <span key={a} className="font-mono text-[10px] text-[#00E5FF] border border-[#00E5FF]/20 bg-[#00E5FF]/5 px-1.5 py-0.5">{a}</span>
+                          ))}
+                        </div>
+                      )}
+                      {p.about && (
+                        <p className="text-[#8B8FA8] text-xs leading-relaxed line-clamp-3 mb-4">{p.about}</p>
+                      )}
+                      <div className="flex gap-2 pt-3 border-t border-[#252830]">
+                        <div className="flex-1 text-center py-2.5 text-xs font-mono text-[#4A4440] border border-[#252830] uppercase tracking-widest">
+                          YOUR BROWSE CARD
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </ProfileBorder>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Blocked Users */}
         <div className={section} style={{ borderTop: '3px solid #525566' }}>

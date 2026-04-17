@@ -6,6 +6,7 @@ import { Target, Music, Calendar, Flag } from 'lucide-react';
 import VerifiedBadge from '@/components/shared/VerifiedBadge';
 import { Profile, getRankTier } from '@/types';
 import ReportModal from '@/components/shared/ReportModal';
+import SpotifyPlayer from '@/components/profile/SpotifyPlayer';
 
 function RankBadge({ rank, label }: { rank: string; label: string }) {
   const tier = getRankTier(rank);
@@ -105,6 +106,14 @@ export default function PublicProfilePage() {
             </div>
           </div>
         </div>
+
+        {/* Spotify embed */}
+        {p.is_supporter && p.profile_music_url && (
+          <div className="px-6 pt-4 pb-2 border-b border-[#2A2D35]">
+            <p className="font-mono text-[9px] tracking-widest uppercase text-[#525566] mb-2">♫ their vibe</p>
+            <SpotifyPlayer trackUrl={p.profile_music_url} />
+          </div>
+        )}
 
         {/* Ranks */}
         <div className="p-6 border-b border-[#2A2D35]">
