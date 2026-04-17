@@ -1041,6 +1041,12 @@ function ProfilePageInner() {
                       {p.about && (
                         <p className="text-[#8B8FA8] text-xs leading-relaxed line-clamp-3 mb-4">{p.about}</p>
                       )}
+                      {p.is_supporter && p.profile_music_url && (
+                        <div className="mb-4">
+                          <p className="font-mono text-[9px] tracking-widest uppercase text-[#525566] mb-1.5">♫ their vibe</p>
+                          <SpotifyPlayer trackUrl={p.profile_music_url} />
+                        </div>
+                      )}
                       <div className="flex gap-2 pt-3 border-t border-[#252830]">
                         <div className="flex-1 text-center py-2.5 text-xs font-mono text-[#4A4440] border border-[#252830] uppercase tracking-widest">
                           YOUR BROWSE CARD
