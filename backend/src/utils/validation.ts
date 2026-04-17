@@ -71,6 +71,10 @@ export const updateProfileSchema = z.object({
   profile_banner: z.enum(BANNER_VALUES).optional(),
   username_effect: z.enum(EFFECT_VALUES).optional(),
   profile_theme: z.enum(THEME_VALUES).optional(),
+  // Profile music (supporter-only; enforced in service layer)
+  profile_music_url: z.string().max(500).nullable().optional(),
+  profile_music_start: z.number().int().min(0).max(600).optional(),
+  profile_music_volume: z.number().int().min(0).max(100).optional(),
 }).strict();
 
 // ─── Privileged Field Stripping ───────────────────────────────

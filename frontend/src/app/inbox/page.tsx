@@ -28,7 +28,13 @@ export default function InboxPage() {
   const router = useRouter();
   const [items, setItems] = useState<InboxItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'requests' | 'chats' | 'matches'>('requests');
+  const [tab, setTab] = useState<'requests' | 'chats' | 'matches'>(() => {
+    if (typeof window !== 'undefined') {
+      const t = new URLSearchParams(window.location.search).get('tab');
+      if (t === 'chats' || t === 'matches') return t;
+    }
+    return 'requests';
+  });
   const [myProfileId, setMyProfileId] = useState<string | null>(null);
   const [viewingProfile, setViewingProfile] = useState<Profile | null>(null);
 

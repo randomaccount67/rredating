@@ -128,6 +128,12 @@ function ProfilePageInner() {
     profile_theme: 'default',
   });
 
+  const [musicSettings, setMusicSettings] = useState({
+    profile_music_url: '',
+    profile_music_start: 0,
+    profile_music_volume: 15,
+  });
+
   useEffect(() => {
     if (searchParams.get('subscribed') === 'true') {
       setJustSubscribed(true);
@@ -179,6 +185,11 @@ function ProfilePageInner() {
               profile_banner: p.profile_banner ?? 'none',
               username_effect: p.username_effect ?? 'none',
               profile_theme: p.profile_theme ?? 'default',
+            });
+            setMusicSettings({
+              profile_music_url: p.profile_music_url ?? '',
+              profile_music_start: p.profile_music_start ?? 0,
+              profile_music_volume: p.profile_music_volume ?? 15,
             });
           } else {
             router.replace('/onboarding');
@@ -251,9 +262,17 @@ function ProfilePageInner() {
         ...form, gender_other: undefined, gender: resolvedGender, avatar_url, age: form.age,
       };
 
-      // Include cosmetics for supporters
+      // Include cosmetics + music for supporters
       if (profile?.is_supporter) {
         Object.assign(body, cosmetics);
+        // Normalize and include music URL
+        const rawUrl = musicSettings.profile_music_url.trim();
+        const spotifyMatch = rawUrl.match(/open\.spotify\.com\/track\/([A-Za-z0-9]+)/);
+        body.profile_music_url = spotifyMatch
+          ? `https://open.spotify.com/track/${spotifyMatch[1]}`
+          : (rawUrl === '' ? null : null); // only accept valid spotify URLs
+        body.profile_music_start = musicSettings.profile_music_start;
+        body.profile_music_volume = musicSettings.profile_music_volume;
       }
 
       const res = await api('/api/profile', { method: 'PUT', body: JSON.stringify(body) });
@@ -620,6 +639,63 @@ function ProfilePageInner() {
                 </div>
               </div>
             )}
+
+            {/* Profile Music */}
+            <div className="mt-5 pt-5 border-t border-[#2F2B24]">
+              <label className="label block mb-2">PROFILE MUSIC <span className="text-[#8B6FFF] text-[9px]">SUPPORTER</span></label>
+              {isSupporter ? (
+                <div className="space-y-3">
+                  <div>
+                    <input
+                      className={`${inputCls} w-full font-mono text-xs`}
+                      placeholder="https://open.spotify.com/track/..."
+                      value={musicSettings.profile_music_url}
+                      onChange={e => setMusicSettings(prev => ({ ...prev, profile_music_url: e.target.value }))}
+                    />
+                    <p className="font-mono text-[9px] text-[#4A4440] mt-1">Paste a Spotify track URL. Shown as a compact player on your profile.</p>
+                  </div>
+                  <div>
+                    <label className="font-mono text-[9px] text-[#4A4440] uppercase tracking-widest block mb-1">
+                      START TIME — {musicSettings.profile_music_start}s
+                    </label>
+                    <input
+                      type="range"
+                      min={0}
+                      max={600}
+                      value={musicSettings.profile_music_start}
+                      onChange={e => setMusicSettings(prev => ({ ...prev, profile_music_start: Number(e.target.value) }))}
+                      className="w-full accent-[#8B6FFF]"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-mono text-[9px] text-[#4A4440] uppercase tracking-widest block mb-1">
+                      VOLUME — {musicSettings.profile_music_volume}%
+                    </label>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={musicSettings.profile_music_volume}
+                      onChange={e => setMusicSettings(prev => ({ ...prev, profile_music_volume: Number(e.target.value) }))}
+                      className="w-full accent-[#8B6FFF]"
+                    />
+                  </div>
+                  {musicSettings.profile_music_url && (
+                    <button
+                      type="button"
+                      onClick={() => setMusicSettings(prev => ({ ...prev, profile_music_url: '' }))}
+                      className="font-mono text-[10px] text-[#4A4440] hover:text-[#FF4655] transition-colors uppercase tracking-widest"
+                    >
+                      — Remove music
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <p className="font-mono text-[10px] text-[#4A4440] flex items-center gap-1">
+                  <span>🔒</span> Profile music requires a Supporter subscription.
+                </p>
+              )}
+            </div>
           </div>
         </div>
 

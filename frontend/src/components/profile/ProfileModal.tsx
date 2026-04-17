@@ -195,6 +195,28 @@ export default function ProfileModal({ profile, onClose, onSendRequest, onPass, 
           </div>
         )}
 
+        {/* Profile Music — supporter-only Spotify embed */}
+        {profile.is_supporter && profile.profile_music_url && (() => {
+          const match = profile.profile_music_url.match(/open\.spotify\.com\/track\/([A-Za-z0-9]+)/);
+          if (!match) return null;
+          const trackId = match[1];
+          const start = profile.profile_music_start ?? 0;
+          const embedUrl = `https://open.spotify.com/embed/track/${trackId}?utm_source=generator&theme=0${start > 0 ? `&t=${start}` : ''}`;
+          return (
+            <div className="border-t-2 border-[#2F2B24]">
+              <iframe
+                src={embedUrl}
+                width="100%"
+                height="80"
+                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                loading="lazy"
+                style={{ border: 0, display: 'block' }}
+                title="Profile music"
+              />
+            </div>
+          );
+        })()}
+
         {/* Joined */}
         <div className="px-5 py-3 border-t-2 border-[#2F2B24] flex items-center gap-2 text-[#4A4440]">
           <Calendar size={10} />

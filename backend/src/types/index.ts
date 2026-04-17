@@ -56,6 +56,10 @@ export interface Profile {
   username_effect: string;
   profile_theme: string;
   badges: string[];
+  // Profile music (supporter-only)
+  profile_music_url: string | null;
+  profile_music_start: number;
+  profile_music_volume: number;
 }
 
 export interface Report {

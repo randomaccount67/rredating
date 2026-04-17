@@ -51,6 +51,7 @@ export async function getMessages(profile: Profile, conversationId: string) {
     other_user: otherUserRes.data,
     messages,
     my_profile_id: profile.id,
+    my_is_supporter: profile.is_supporter,
   };
 }
 

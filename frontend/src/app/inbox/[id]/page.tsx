@@ -3,9 +3,11 @@ import { useApi } from '@/lib/api';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Send, ArrowLeft, AlertTriangle, Flag, UserX, HeartOff } from 'lucide-react';
+import { Send, ArrowLeft, AlertTriangle, Flag, UserX, HeartOff, Smile } from 'lucide-react';
 import ReportModal from '@/components/shared/ReportModal';
 import ProfileModal from '@/components/profile/ProfileModal';
+import EmojiPicker from '@/components/chat/EmojiPicker';
+import GifPicker from '@/components/chat/GifPicker';
 import { createClient } from '@/lib/supabase';
 import { Profile } from '@/types';
 import { PartialProfile, buildProfile } from '@/lib/utils';
@@ -24,6 +26,7 @@ interface ConversationData {
   other_user: PartialProfile;
   messages: Message[];
   my_profile_id: string;
+  my_is_supporter: boolean;
 }
 
 
@@ -43,6 +46,8 @@ export default function MessageThreadPage() {
   const [blocking, setBlocking] = useState(false);
   const [showUnmatchConfirm, setShowUnmatchConfirm] = useState(false);
   const [unmatching, setUnmatching] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showGifPicker, setShowGifPicker] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -168,6 +173,39 @@ export default function MessageThreadPage() {
     } finally {
       setSending(false);
     }
+  };
+
+  const handleSendGif = async (url: string) => {
+    setShowGifPicker(false);
+    try {
+      const res = await api('/api/messages', {
+        method: 'POST',
+        body: JSON.stringify({ conversation_id: params.id, content: `[gif:${url}]` }),
+      });
+      if (!res.ok) return;
+      const { message: newMsg } = await res.json();
+      setData(prev => {
+        if (!prev) return prev;
+        if (prev.messages.some(m => m.id === newMsg.id)) return prev;
+        return { ...prev, messages: [...prev.messages, newMsg] };
+      });
+      setTimeout(scrollToBottom, 100);
+    } catch { /* non-critical */ }
+  };
+
+  const handleEmojiSelect = (emoji: string) => {
+    setShowEmojiPicker(false);
+    const input = inputRef.current;
+    if (!input) { setMessage(prev => prev + emoji); return; }
+    const start = input.selectionStart ?? message.length;
+    const end = input.selectionEnd ?? message.length;
+    const next = message.slice(0, start) + emoji + message.slice(end);
+    setMessage(next);
+    // Restore cursor after emoji
+    requestAnimationFrame(() => {
+      input.focus();
+      input.setSelectionRange(start + emoji.length, start + emoji.length);
+    });
   };
 
   const handleBlock = async () => {
@@ -388,21 +426,36 @@ export default function MessageThreadPage() {
         ) : (
           data.messages.map(msg => {
             const isMe = msg.sender_id === data.my_profile_id;
+            const gifMatch = msg.content.match(/^\[gif:(https?:\/\/.+)\]$/);
             return (
               <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                <div
-                  className={`max-w-xs px-3 py-2 text-sm ${
-                    isMe
-                      ? 'bg-[#FF4655]/20 border border-[#FF4655]/30 text-[#E8EAF0]'
-                      : 'bg-[#1E2128] border border-[#2A2D35] text-[#E8EAF0]'
-                  }`}
-                  style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}
-                >
-                  <p className="break-words">{msg.content}</p>
-                  <p className="font-mono text-[9px] text-[#525566] mt-1 text-right">
-                    {new Date(msg.created_at ?? Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                </div>
+                {gifMatch ? (
+                  <div className={`max-w-[250px] ${isMe ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
+                    <img
+                      src={gifMatch[1]}
+                      alt="GIF"
+                      className="max-w-[250px] rounded object-cover"
+                      loading="lazy"
+                    />
+                    <p className="font-mono text-[9px] text-[#525566] text-right">
+                      {new Date(msg.created_at ?? Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                ) : (
+                  <div
+                    className={`max-w-xs px-3 py-2 text-sm ${
+                      isMe
+                        ? 'bg-[#FF4655]/20 border border-[#FF4655]/30 text-[#E8EAF0]'
+                        : 'bg-[#1E2128] border border-[#2A2D35] text-[#E8EAF0]'
+                    }`}
+                    style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}
+                  >
+                    <p className="break-words">{msg.content}</p>
+                    <p className="font-mono text-[9px] text-[#525566] mt-1 text-right">
+                      {new Date(msg.created_at ?? Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                )}
               </div>
             );
           })
@@ -419,7 +472,25 @@ export default function MessageThreadPage() {
       )}
 
       {/* Input */}
-      <div className="flex gap-2">
+      <div className="relative flex gap-2">
+        {/* Emoji picker */}
+        {showEmojiPicker && (
+          <div className="absolute bottom-full right-0 mb-2 z-40">
+            <EmojiPicker
+              onSelect={handleEmojiSelect}
+              onClose={() => setShowEmojiPicker(false)}
+            />
+          </div>
+        )}
+        {/* GIF picker */}
+        {showGifPicker && (
+          <div className="absolute bottom-full right-0 mb-2 z-40">
+            <GifPicker
+              onSend={handleSendGif}
+              onClose={() => setShowGifPicker(false)}
+            />
+          </div>
+        )}
         <input
           ref={inputRef}
           className="flex-1 bg-[#1A1D24] border border-[#2A2D35] px-4 py-2.5 text-sm focus:border-[#FF4655] outline-none"
@@ -429,6 +500,28 @@ export default function MessageThreadPage() {
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
           maxLength={1000}
         />
+        {/* Emoji button — all users */}
+        <button
+          onClick={() => { setShowGifPicker(false); setShowEmojiPicker(prev => !prev); }}
+          className="text-[#525566] hover:text-[#E8EAF0] transition-colors px-2 bg-[#1A1D24] border border-[#2A2D35] flex items-center"
+          title="Emoji"
+          aria-label="Emoji"
+          type="button"
+        >
+          <Smile size={16} />
+        </button>
+        {/* GIF button — supporters only */}
+        {data.my_is_supporter && (
+          <button
+            onClick={() => { setShowEmojiPicker(false); setShowGifPicker(prev => !prev); }}
+            className="text-[#525566] hover:text-[#00E5FF] transition-colors px-2.5 bg-[#1A1D24] border border-[#2A2D35] font-mono text-[10px] font-bold tracking-wider flex items-center"
+            title="Send GIF"
+            aria-label="Send GIF"
+            type="button"
+          >
+            GIF
+          </button>
+        )}
         <button
           onClick={handleSend}
           disabled={sending || !message.trim()}

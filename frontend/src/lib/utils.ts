@@ -31,6 +31,9 @@ export interface PartialProfile {
   username_effect?: string;
   profile_theme?: string;
   badges?: string[];
+  profile_music_url?: string | null;
+  profile_music_start?: number;
+  profile_music_volume?: number;
 }
 
 /**
@@ -73,5 +76,8 @@ export function buildProfile(u: PartialProfile): Profile {
     username_effect: u.username_effect ?? 'none',
     profile_theme: u.profile_theme ?? 'default',
     badges: u.badges ?? [],
+    profile_music_url: u.profile_music_url ?? null,
+    profile_music_start: u.profile_music_start ?? 0,
+    profile_music_volume: u.profile_music_volume ?? 15,
   };
 }

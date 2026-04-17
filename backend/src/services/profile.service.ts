@@ -138,12 +138,12 @@ export async function updateProfile(authUserId: string, body: Record<string, unk
   const about = typeof input.about === 'string' ? cleanProfanity(input.about) : null;
   const favoriteArtist = typeof input.favorite_artist === 'string' ? cleanProfanity(input.favorite_artist) : (input.favorite_artist ?? null);
 
-  const COSMETIC_FIELDS = ['profile_border', 'profile_border_color', 'profile_accent_color', 'profile_banner', 'username_effect', 'profile_theme'] as const;
-  type CosmeticField = typeof COSMETIC_FIELDS[number];
+  const SUPPORTER_FIELDS = ['profile_border', 'profile_border_color', 'profile_accent_color', 'profile_banner', 'username_effect', 'profile_theme', 'profile_music_url', 'profile_music_start', 'profile_music_volume'] as const;
+  type SupporterField = typeof SUPPORTER_FIELDS[number];
 
-  const hasCosmetics = COSMETIC_FIELDS.some(f => (input as Record<string, unknown>)[f] !== undefined);
+  const hasSupporterFields = SUPPORTER_FIELDS.some(f => (input as Record<string, unknown>)[f] !== undefined);
   let isSupporter = false;
-  if (hasCosmetics) {
+  if (hasSupporterFields) {
     const { data: cur } = await db.from('profiles').select('is_supporter').eq('auth_user_id', authUserId).single();
     isSupporter = cur?.is_supporter ?? false;
   }
@@ -164,10 +164,10 @@ export async function updateProfile(authUserId: string, body: Record<string, unk
   };
   if (input.age !== undefined) updateData.age = input.age;
 
-  // Only save cosmetic fields for supporters
+  // Only save supporter-only fields for supporters
   if (isSupporter) {
-    for (const f of COSMETIC_FIELDS) {
-      const val = (input as Record<CosmeticField, unknown>)[f];
+    for (const f of SUPPORTER_FIELDS) {
+      const val = (input as Record<SupporterField, unknown>)[f];
       if (val !== undefined) updateData[f] = val;
     }
   }
