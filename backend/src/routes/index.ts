@@ -13,6 +13,7 @@ import * as admin from '../controllers/admin.controller.js';
 import * as subscription from '../controllers/subscription.controller.js';
 import * as announcement from '../controllers/announcement.controller.js';
 import * as gifCtrl from '../controllers/gif.controller.js';
+import * as warningsCtrl from '../controllers/warnings.controller.js';
 
 const router = Router();
 const uploadMiddleware = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
@@ -66,6 +67,15 @@ router.get('/api/gifs/trending', ...protect, gifCtrl.trending);
 
 // ─── Announcements (public read) ───────────────────────────────
 router.get('/api/announcements/active', announcement.getActive);
+
+// ─── Warnings (admin) ──────────────────────────────────────────
+router.post('/api/admin/warn',              ...adminProtect, warningsCtrl.warnUser);
+router.get('/api/admin/warnings/:user_id', ...adminProtect, warningsCtrl.getUserWarnings);
+router.post('/api/admin/warning-counts',   ...adminProtect, warningsCtrl.getWarningCounts);
+
+// ─── Warnings (user-facing) ────────────────────────────────────
+router.get('/api/warnings/active',             ...protect, warningsCtrl.getActiveWarnings);
+router.post('/api/warnings/:id/acknowledge',   ...protect, warningsCtrl.acknowledgeWarning);
 
 // ─── Admin ─────────────────────────────────────────────────────
 router.get('/api/admin/users',                  ...adminProtect, admin.listUsers);

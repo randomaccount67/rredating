@@ -16,6 +16,7 @@ import {
   Megaphone,
   Pencil,
   Trash2,
+  TriangleAlert,
 } from "lucide-react";
 import VerifiedBadge from "@/components/shared/VerifiedBadge";
 
@@ -66,6 +67,14 @@ interface AdminReport {
   } | null;
 }
 
+interface AdminWarning {
+  id: string;
+  message: string;
+  acknowledged: boolean;
+  created_at: string;
+  admin: { id: string; riot_id: string | null; riot_tag: string | null } | null;
+}
+
 function displayName(
   user: { riot_id: string | null; riot_tag: string | null } | null,
 ) {
@@ -103,6 +112,15 @@ export default function AdminPage() {
   const [announcementLoading, setAnnouncementLoading] = useState(false);
   const [editingAnnouncement, setEditingAnnouncement] = useState<{ id: string; content: string } | null>(null);
 
+  // Warnings state
+  const [warningCounts, setWarningCounts] = useState<Record<string, number>>({});
+  const [selectedUserWarnings, setSelectedUserWarnings] = useState<AdminWarning[]>([]);
+  const [warningsLoading, setWarningsLoading] = useState(false);
+  const [showWarnModal, setShowWarnModal] = useState(false);
+  const [warnMessage, setWarnMessage] = useState('');
+  const [warnSending, setWarnSending] = useState(false);
+  const [warnSent, setWarnSent] = useState(false);
+
   const loadUsers = useCallback(async (pageNum: number, search: string) => {
     setLoading(true);
     try {
@@ -112,15 +130,18 @@ export default function AdminPage() {
       if (res.status === 403) { router.replace("/"); return; }
       if (!res.ok) throw new Error("Failed to load");
       const data = await res.json();
-      setUsers(data.users ?? []);
+      const users: AdminUser[] = data.users ?? [];
+      setUsers(users);
       setTotalUsers(data.total ?? 0);
       setTotalPages(data.totalPages ?? 0);
+      // Batch-fetch warning counts for this page — single query, no N+1
+      if (users.length) loadWarningCounts(users.map(u => u.id));
     } catch {
       setError("Failed to load users.");
     } finally {
       setLoading(false);
     }
-  }, [router, api]);
+  }, [router, api, loadWarningCounts]);
 
   const loadReports = useCallback(async () => {
     try {
@@ -142,6 +163,51 @@ export default function AdminPage() {
       setAnnouncements(data.announcements ?? []);
     } catch { /* non-critical */ }
   }, [api]);
+
+  const loadWarningCounts = useCallback(async (userIds: string[]) => {
+    if (!userIds.length) return;
+    try {
+      const res = await api('/api/admin/warning-counts', {
+        method: 'POST',
+        body: JSON.stringify({ user_ids: userIds }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setWarningCounts(prev => ({ ...prev, ...(data.counts ?? {}) }));
+    } catch { /* non-critical */ }
+  }, [api]);
+
+  const loadUserWarnings = useCallback(async (userId: string) => {
+    setWarningsLoading(true);
+    try {
+      const res = await api(`/api/admin/warnings/${userId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setSelectedUserWarnings(data.warnings ?? []);
+    } catch { /* non-critical */ }
+    finally { setWarningsLoading(false); }
+  }, [api]);
+
+  const handleWarn = async () => {
+    if (!selectedUser || !warnMessage.trim() || warnSending) return;
+    setWarnSending(true);
+    try {
+      const res = await api('/api/admin/warn', {
+        method: 'POST',
+        body: JSON.stringify({ user_id: selectedUser.id, message: warnMessage.trim() }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      setWarnSent(true);
+      setWarnMessage('');
+      setWarningCounts(prev => ({ ...prev, [selectedUser.id]: (prev[selectedUser.id] ?? 0) + 1 }));
+      await loadUserWarnings(selectedUser.id);
+      setTimeout(() => setWarnSent(false), 3000);
+    } catch {
+      setError('Failed to send warning.');
+    } finally {
+      setWarnSending(false);
+    }
+  };
 
   const handleCreateAnnouncement = async () => {
     if (!newAnnouncementContent.trim()) return;
@@ -227,6 +293,13 @@ export default function AdminPage() {
     loadReports();
     loadAnnouncements();
   }, [loadReports, loadAnnouncements]);
+
+  useEffect(() => {
+    if (selectedUser) {
+      setSelectedUserWarnings([]);
+      loadUserWarnings(selectedUser.id);
+    }
+  }, [selectedUser?.id, loadUserWarnings]);
 
   const handleBan = async (profileId: string, ban: boolean) => {
     setActionLoading(profileId);
@@ -530,6 +603,12 @@ export default function AdminPage() {
                           {reportCount}
                         </span>
                       )}
+                      {(warningCounts[u.id] ?? 0) > 0 && (
+                        <span className="font-mono text-[9px] text-amber-400">
+                          <TriangleAlert size={8} className="inline mr-0.5" />
+                          {warningCounts[u.id]}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <ChevronRight
@@ -636,6 +715,13 @@ export default function AdminPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <button
+                      onClick={() => { setShowWarnModal(true); setWarnSent(false); setWarnMessage(''); }}
+                      className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-2 border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 transition-all"
+                      style={{ fontFamily: "Barlow Condensed, sans-serif", clipPath: "polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)" }}
+                    >
+                      <TriangleAlert size={13} /> WARN
+                    </button>
+                    <button
                       onClick={() =>
                         handleVerify(selectedUser.id, !selectedUser.is_verified)
                       }
@@ -717,6 +803,44 @@ export default function AdminPage() {
                     <p className="text-[#8B8FA8] text-xs leading-relaxed">
                       {selectedUser.about}
                     </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Warning history for this user */}
+              <div
+                className="bg-[#1A1D24] border border-[#2A2D35]"
+                style={{ clipPath: "polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)" }}
+              >
+                <div className="px-4 py-3 border-b border-[#2A2D35] flex items-center gap-2">
+                  <TriangleAlert size={11} className="text-amber-400" />
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-[#8B8FA8]">
+                    Warning History ({selectedUserWarnings.length})
+                  </span>
+                </div>
+                {warningsLoading ? (
+                  <div className="px-4 py-6 text-center">
+                    <p className="font-mono text-[10px] text-[#525566]">Loading...</p>
+                  </div>
+                ) : selectedUserWarnings.length === 0 ? (
+                  <div className="px-4 py-6 text-center">
+                    <p className="font-mono text-[10px] text-[#525566]">No warnings issued.</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-[#2A2D35]">
+                    {selectedUserWarnings.map(w => (
+                      <div key={w.id} className="px-4 py-3">
+                        <div className="flex items-start justify-between gap-3 mb-1">
+                          <p className="text-[#E8EAF0] text-xs leading-relaxed flex-1">{w.message}</p>
+                          <span className={`font-mono text-[9px] border px-1.5 py-0.5 flex-shrink-0 ${w.acknowledged ? "border-[#2A2D35] text-green-500" : "border-amber-500/30 text-amber-400"}`}>
+                            {w.acknowledged ? '✓ ACK' : 'PENDING'}
+                          </span>
+                        </div>
+                        <p className="font-mono text-[9px] text-[#525566]">
+                          By: {displayName(w.admin)} · {new Date(w.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -914,6 +1038,66 @@ export default function AdminPage() {
           )}
         </div>
       </div>
+
+      {/* Warn modal */}
+      {showWarnModal && selectedUser && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80"
+          onClick={() => { setShowWarnModal(false); setWarnMessage(''); setWarnSent(false); }}
+        >
+          <div
+            className="bg-[#1A1D24] border border-[#FF4655]/40 p-6 max-w-md w-full"
+            style={{ clipPath: "polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)" }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <span className="font-mono text-[9px] text-amber-400 uppercase tracking-wider">Issue Warning</span>
+                <h3
+                  className="font-bold text-lg uppercase text-[#E8EAF0]"
+                  style={{ fontFamily: "Barlow Condensed, sans-serif" }}
+                >
+                  WARN {displayName(selectedUser)}
+                </h3>
+              </div>
+              <button
+                onClick={() => { setShowWarnModal(false); setWarnMessage(''); setWarnSent(false); }}
+                className="text-[#525566] hover:text-[#E8EAF0] transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            {warnSent ? (
+              <div className="py-8 text-center">
+                <CheckCircle size={32} className="text-green-400 mx-auto mb-3" />
+                <p className="font-mono text-xs text-green-400">Warning sent successfully.</p>
+              </div>
+            ) : (
+              <>
+                <textarea
+                  value={warnMessage}
+                  onChange={e => setWarnMessage(e.target.value)}
+                  placeholder="Explain what the user did wrong and what rule was violated..."
+                  rows={4}
+                  maxLength={1000}
+                  className="w-full bg-[#13151A] border border-[#2A2D35] px-3 py-2 font-mono text-xs text-[#E8EAF0] placeholder-[#525566] focus:border-[#FF4655]/50 outline-none resize-none mb-3"
+                />
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-mono text-[9px] text-[#525566]">{warnMessage.length}/1000</span>
+                  <button
+                    onClick={handleWarn}
+                    disabled={!warnMessage.trim() || warnSending}
+                    className="font-mono text-xs font-bold uppercase tracking-wider px-4 py-2 bg-[#FF4655] text-white hover:bg-[#FF5F6D] transition-colors disabled:opacity-50"
+                    style={{ fontFamily: "Barlow Condensed, sans-serif", clipPath: "polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)" }}
+                  >
+                    {warnSending ? 'SENDING...' : 'SEND WARNING'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Message viewer modal */}
       {viewingMessages && (

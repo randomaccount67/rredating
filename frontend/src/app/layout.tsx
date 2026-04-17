@@ -4,6 +4,7 @@ import './globals.css';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import BannedGate from '@/components/shared/BannedGate';
+import WarningGate from '@/components/shared/WarningGate';
 import ThemeApplicator from '@/components/shared/ThemeApplicator';
 import { ToastProvider } from '@/components/shared/ToastContext';
 
@@ -74,11 +75,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           ) : (
             <BannedGate>
-              <Navbar />
-              <main className="flex-1">
-                {children}
-              </main>
-              <Footer />
+              <WarningGate>
+                <Navbar />
+                <main className="flex-1">
+                  {children}
+                </main>
+                <Footer />
+              </WarningGate>
             </BannedGate>
           )}
         </ToastProvider>
