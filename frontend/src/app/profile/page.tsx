@@ -884,6 +884,12 @@ function ProfilePageInner() {
               music_tags: form.music_tags as Profile['music_tags'],
               favorite_artist: form.favorite_artist,
               ...(isSupporter ? cosmetics : {}),
+              ...(isSupporter ? {
+                profile_music_url: musicSettings.profile_music_url.match(/open\.spotify\.com\/track\/[A-Za-z0-9]+/)
+                  ? musicSettings.profile_music_url
+                  : null,
+                profile_music_start: musicSettings.profile_music_start,
+              } : {}),
             }}
             onClose={() => setShowPreview(false)}
             onSendRequest={() => {}}

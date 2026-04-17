@@ -429,7 +429,7 @@ export default function MatchPage() {
             <Crown size={14} className="text-yellow-500 flex-shrink-0" />
             <div className="min-w-0">
               <span className="text-yellow-400 font-bold text-xs uppercase font-mono tracking-wider">SUPPORTER PERKS</span>
-              <p className="text-yellow-200/50 text-[10px] mt-0.5 font-mono">Priority placement · 5 agents · animated borders &amp; more — $5/mo</p>
+              <p className="text-yellow-200/50 text-[10px] mt-0.5 font-mono">Priority placement · Gif permissions · Music on profile &amp; more — $5/mo</p>
             </div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -548,6 +548,34 @@ export default function MatchPage() {
                 <span className="font-mono text-[10px] text-[#8B8FA8]">{currentProfile.region}</span>
               </div>
             )}
+            {/* Music indicator */}
+            {currentProfile.is_supporter && currentProfile.profile_music_url && (() => {
+              const mc = currentProfile.profile_accent_color ?? '#8B6FFF';
+              return (
+                <div className="absolute bottom-3 left-3 flex flex-col items-start gap-1.5">
+                  <style>{`@keyframes eq-bar{0%,100%{transform:scaleY(.35)}50%{transform:scaleY(1)}}`}</style>
+                  <div className="flex items-end gap-[3px]" style={{ height: 16 }}>
+                    {[0, 0.18, 0.09, 0.27].map((delay, i) => (
+                      <span key={i} style={{
+                        width: 3, height: '100%', display: 'block',
+                        background: mc, borderRadius: 1,
+                        transformOrigin: 'bottom',
+                        animation: `eq-bar ${0.55 + i * 0.08}s ease-in-out ${delay}s infinite`,
+                        boxShadow: `0 0 6px ${mc}`,
+                      }} />
+                    ))}
+                  </div>
+                  <span className="font-mono text-[9px] tracking-widest uppercase px-1.5 py-0.5"
+                    style={{
+                      color: mc,
+                      background: '#11141Bcc',
+                      textShadow: `0 0 8px ${mc}`,
+                    }}>
+                    ♫ their vibe
+                  </span>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Info */}
