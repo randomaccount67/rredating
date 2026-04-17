@@ -4,6 +4,7 @@ import { Crosshair, Zap, Users, Lock } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useApi } from '@/lib/api';
 import { createClient } from '@/lib/supabase';
+import AnnouncementBanner from '@/components/shared/AnnouncementBanner';
 
 function HeroCTA() {
   const api = useApi();
@@ -100,15 +101,23 @@ export default function LandingPage() {
           style={{ background: 'radial-gradient(circle, #00E5FF 0%, transparent 65%)' }} />
       </div>
 
-      {/* Hero */}
-      <section className="relative max-w-7xl mx-auto px-4 pt-20 pb-24 text-center">
-        <div className="inline-flex items-center gap-2 border border-[#FF4655]/30 bg-[#FF4655]/5 px-4 py-1.5 mb-8">
+      {/* Disclaimer */}
+      <div className="relative pt-20 flex justify-center px-4">
+        <div className="inline-flex items-center gap-2 border border-[#FF4655]/30 bg-[#FF4655]/5 px-4 py-1.5">
           <div className="w-1.5 h-1.5 bg-[#FF4655] rounded-full animate-pulse" />
           <span className="font-mono text-[10px] text-[#FF4655] tracking-widest uppercase">
             NOT AFFILIATED WITH RIOT GAMES · 18+ ONLY · FOR ENTERTAINMENT
           </span>
         </div>
+      </div>
 
+      {/* Announcement banner — full width, collapses when no active announcement */}
+      <div className="mt-6">
+        <AnnouncementBanner />
+      </div>
+
+      {/* Hero */}
+      <section className="relative max-w-7xl mx-auto px-4 pt-10 pb-24 text-center">
         <h1
           className="font-extrabold text-6xl sm:text-8xl uppercase tracking-tight text-[#ECF0F8] mb-4 leading-none"
           style={{ fontFamily: 'Barlow Condensed, sans-serif' }}

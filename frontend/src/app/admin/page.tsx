@@ -13,6 +13,9 @@ import {
   X,
   Search,
   ChevronLeft,
+  Megaphone,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import VerifiedBadge from "@/components/shared/VerifiedBadge";
 
@@ -34,6 +37,13 @@ interface AdminUser {
   favorite_artist: string | null;
   music_tags: string[] | null;
   avatar_url: string | null;
+}
+
+interface Announcement {
+  id: string;
+  content: string;
+  is_active: boolean;
+  created_at: string;
 }
 
 interface AdminReport {
@@ -87,6 +97,12 @@ export default function AdminPage() {
   const [totalUsers, setTotalUsers] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
 
+  // Announcements state
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [newAnnouncementContent, setNewAnnouncementContent] = useState('');
+  const [announcementLoading, setAnnouncementLoading] = useState(false);
+  const [editingAnnouncement, setEditingAnnouncement] = useState<{ id: string; content: string } | null>(null);
+
   const loadUsers = useCallback(async (pageNum: number, search: string) => {
     setLoading(true);
     try {
@@ -118,6 +134,80 @@ export default function AdminPage() {
     }
   }, [router, api]);
 
+  const loadAnnouncements = useCallback(async () => {
+    try {
+      const res = await api("/api/admin/announcements");
+      if (!res.ok) return;
+      const data = await res.json();
+      setAnnouncements(data.announcements ?? []);
+    } catch { /* non-critical */ }
+  }, [api]);
+
+  const handleCreateAnnouncement = async () => {
+    if (!newAnnouncementContent.trim()) return;
+    setAnnouncementLoading(true);
+    try {
+      const res = await api("/api/admin/announcements", {
+        method: "POST",
+        body: JSON.stringify({ content: newAnnouncementContent.trim(), is_active: false }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      setNewAnnouncementContent("");
+      await loadAnnouncements();
+    } catch {
+      setError("Failed to create announcement.");
+    } finally {
+      setAnnouncementLoading(false);
+    }
+  };
+
+  const handleToggleAnnouncement = async (id: string, is_active: boolean) => {
+    setAnnouncementLoading(true);
+    try {
+      const res = await api(`/api/admin/announcements/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ is_active }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      await loadAnnouncements();
+    } catch {
+      setError("Failed to update announcement.");
+    } finally {
+      setAnnouncementLoading(false);
+    }
+  };
+
+  const handleSaveAnnouncementEdit = async () => {
+    if (!editingAnnouncement || !editingAnnouncement.content.trim()) return;
+    setAnnouncementLoading(true);
+    try {
+      const res = await api(`/api/admin/announcements/${editingAnnouncement.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ content: editingAnnouncement.content.trim() }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      setEditingAnnouncement(null);
+      await loadAnnouncements();
+    } catch {
+      setError("Failed to update announcement.");
+    } finally {
+      setAnnouncementLoading(false);
+    }
+  };
+
+  const handleDeleteAnnouncement = async (id: string) => {
+    setAnnouncementLoading(true);
+    try {
+      const res = await api(`/api/admin/announcements/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed");
+      await loadAnnouncements();
+    } catch {
+      setError("Failed to delete announcement.");
+    } finally {
+      setAnnouncementLoading(false);
+    }
+  };
+
   // Debounce search — wait 400ms, then reset to page 0 and fetch
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -135,7 +225,8 @@ export default function AdminPage() {
 
   useEffect(() => {
     loadReports();
-  }, [loadReports]);
+    loadAnnouncements();
+  }, [loadReports, loadAnnouncements]);
 
   const handleBan = async (profileId: string, ban: boolean) => {
     setActionLoading(profileId);
@@ -706,6 +797,124 @@ export default function AdminPage() {
           )}
         </div>
       </div>
+      {/* ─── Announcements ─────────────────────────────────────────── */}
+      <div className="mt-10">
+        <div className="mb-4 flex items-center gap-2">
+          <Megaphone size={13} className="text-[#FFE84D]" />
+          <span className="font-mono text-[10px] uppercase tracking-wider text-[#8B8FA8]">
+            Announcements
+          </span>
+        </div>
+
+        {/* Create new */}
+        <div
+          className="bg-[#1A1D24] border border-[#2A2D35] p-4 mb-4"
+          style={{ clipPath: "polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)" }}
+        >
+          <p className="font-mono text-[9px] text-[#525566] uppercase tracking-wider mb-2">New Announcement</p>
+          <div className="flex gap-2">
+            <textarea
+              value={newAnnouncementContent}
+              onChange={e => setNewAnnouncementContent(e.target.value)}
+              placeholder="Enter announcement text…"
+              rows={2}
+              className="flex-1 bg-[#13151A] border border-[#2A2D35] px-3 py-2 font-mono text-xs text-[#E8EAF0] placeholder-[#525566] focus:border-[#FFE84D]/50 outline-none resize-none"
+            />
+            <button
+              onClick={handleCreateAnnouncement}
+              disabled={announcementLoading || !newAnnouncementContent.trim()}
+              className="font-mono text-[10px] uppercase tracking-wider text-[#FFE84D] border border-[#FFE84D]/30 px-4 hover:bg-[#FFE84D]/10 transition-colors disabled:opacity-40 flex-shrink-0"
+              style={{ clipPath: "polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)" }}
+            >
+              Create
+            </button>
+          </div>
+        </div>
+
+        {/* List */}
+        <div
+          className="bg-[#1A1D24] border border-[#2A2D35]"
+          style={{ clipPath: "polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)" }}
+        >
+          {announcements.length === 0 ? (
+            <div className="px-4 py-6 text-center">
+              <p className="font-mono text-[10px] text-[#525566]">No announcements yet.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-[#2A2D35]">
+              {announcements.map(a => (
+                <div key={a.id} className="px-4 py-3">
+                  {editingAnnouncement?.id === a.id ? (
+                    <div className="flex gap-2 items-start">
+                      <textarea
+                        value={editingAnnouncement.content}
+                        onChange={e => setEditingAnnouncement({ ...editingAnnouncement, content: e.target.value })}
+                        rows={2}
+                        className="flex-1 bg-[#13151A] border border-[#FFE84D]/40 px-3 py-2 font-mono text-xs text-[#E8EAF0] outline-none resize-none"
+                      />
+                      <div className="flex flex-col gap-1 flex-shrink-0">
+                        <button
+                          onClick={handleSaveAnnouncementEdit}
+                          disabled={announcementLoading}
+                          className="font-mono text-[9px] text-green-400 border border-green-500/30 px-2 py-1 hover:bg-green-500/10 transition-colors disabled:opacity-40"
+                        >
+                          SAVE
+                        </button>
+                        <button
+                          onClick={() => setEditingAnnouncement(null)}
+                          className="font-mono text-[9px] text-[#525566] border border-[#2A2D35] px-2 py-1 hover:text-[#E8EAF0] transition-colors"
+                        >
+                          CANCEL
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`font-mono text-[9px] border px-1.5 py-0.5 ${a.is_active ? "border-[#FFE84D]/40 text-[#FFE84D]" : "border-[#2A2D35] text-[#525566]"}`}>
+                            {a.is_active ? "ACTIVE" : "INACTIVE"}
+                          </span>
+                          <span className="font-mono text-[9px] text-[#525566]">
+                            {new Date(a.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <p className="text-[#8B8FA8] text-xs leading-relaxed break-words">{a.content}</p>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <button
+                          onClick={() => handleToggleAnnouncement(a.id, !a.is_active)}
+                          disabled={announcementLoading}
+                          className={`font-mono text-[9px] border px-2 py-1 transition-colors disabled:opacity-40 ${a.is_active ? "border-[#525566]/30 text-[#525566] hover:text-[#E8EAF0] hover:border-[#525566]" : "border-[#FFE84D]/30 text-[#FFE84D] hover:bg-[#FFE84D]/10"}`}
+                        >
+                          {a.is_active ? "DEACTIVATE" : "ACTIVATE"}
+                        </button>
+                        <button
+                          onClick={() => setEditingAnnouncement({ id: a.id, content: a.content })}
+                          disabled={announcementLoading}
+                          className="text-[#525566] hover:text-[#E8EAF0] transition-colors disabled:opacity-40 p-1"
+                          aria-label="Edit"
+                        >
+                          <Pencil size={11} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteAnnouncement(a.id)}
+                          disabled={announcementLoading}
+                          className="text-[#525566] hover:text-[#FF4655] transition-colors disabled:opacity-40 p-1"
+                          aria-label="Delete"
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Message viewer modal */}
       {viewingMessages && (
         <div

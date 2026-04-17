@@ -11,6 +11,7 @@ import * as social from '../controllers/social.controller.js';
 import * as moderation from '../controllers/moderation.controller.js';
 import * as admin from '../controllers/admin.controller.js';
 import * as subscription from '../controllers/subscription.controller.js';
+import * as announcement from '../controllers/announcement.controller.js';
 
 const router = Router();
 const uploadMiddleware = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
@@ -58,12 +59,19 @@ router.get('/api/subscription/status',           ...protect, subscription.getSta
 router.post('/api/subscription/cancel',          ...protect, subscription.cancel);
 router.post('/api/subscription/portal',          ...protect, subscription.portal);
 
+// ─── Announcements (public read) ───────────────────────────────
+router.get('/api/announcements/active', announcement.getActive);
+
 // ─── Admin ─────────────────────────────────────────────────────
-router.get('/api/admin/users',        ...adminProtect, admin.listUsers);
-router.get('/api/admin/reports',      ...adminProtect, admin.listReports);
-router.patch('/api/admin/reports',    ...adminProtect, admin.updateReport);
-router.post('/api/admin/ban',         ...adminProtect, admin.toggleBan);
-router.post('/api/admin/verify',      ...adminProtect, admin.toggleVerified);
-router.get('/api/admin/conversation', ...adminProtect, admin.viewConversation);
+router.get('/api/admin/users',                  ...adminProtect, admin.listUsers);
+router.get('/api/admin/reports',                ...adminProtect, admin.listReports);
+router.patch('/api/admin/reports',              ...adminProtect, admin.updateReport);
+router.post('/api/admin/ban',                   ...adminProtect, admin.toggleBan);
+router.post('/api/admin/verify',                ...adminProtect, admin.toggleVerified);
+router.get('/api/admin/conversation',           ...adminProtect, admin.viewConversation);
+router.get('/api/admin/announcements',          ...adminProtect, announcement.list);
+router.post('/api/admin/announcements',         ...adminProtect, announcement.create);
+router.patch('/api/admin/announcements/:id',    ...adminProtect, announcement.update);
+router.delete('/api/admin/announcements/:id',   ...adminProtect, announcement.remove);
 
 export default router;
