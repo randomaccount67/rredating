@@ -176,7 +176,7 @@ async function loadBrowseCandidates(profile: Profile, includePassed = false): Pr
     // appearing in the feed just because the RPC SQL is not perfectly in sync.
     const [excludeResult, rpc] = await Promise.all([
       buildBrowseExcludeSet(profile, includePassed),
-      db.rpc('get_browseable_profiles', { viewer_id: profile.id }).select(BROWSE_COLUMNS),
+      db.rpc('get_browseable_profiles', { viewer_id: profile.id }).select(BROWSE_COLUMNS).limit(10000),
     ]);
 
     if (!excludeResult) return []; // exclude set fetch failed — fail safe
