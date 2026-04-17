@@ -114,7 +114,7 @@ export default function GifPicker({ onSend, onClose }: GifPickerProps) {
 
       {/* Tenor attribution */}
       <div className="px-2 py-1.5 border-t border-[#2A2D35] flex-shrink-0">
-        <p className="font-mono text-[8px] text-[#525566] text-right">Powered by Tenor</p>
+        <p className="font-mono text-[8px] text-[#525566] text-right">Powered by GIPHY</p>
       </div>
     </div>
   );

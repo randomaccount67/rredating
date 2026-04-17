@@ -1,38 +1,45 @@
-const TENOR_API_KEY = process.env.TENOR_API_KEY ?? '';
-const TENOR_BASE = 'https://tenor.googleapis.com/v2';
-const MEDIA_FILTER = 'gif,tinygif';
-const LIMIT = 24;
+const GIPHY_API_KEY = process.env.GIPHY_API_KEY ?? '';
+const GIPHY_BASE = 'https://api.giphy.com/v1/gifs';
+const LIMIT = 20;
+const RATING = 'pg-13';
 
-interface TenorResult {
+interface GiphyImages {
+  url: string;
+  width: string;
+  height: string;
+}
+
+interface GiphyResult {
   id: string;
-  media_formats: {
-    gif?: { url: string; dims: number[] };
-    tinygif?: { url: string; dims: number[] };
+  images: {
+    fixed_height: GiphyImages;
+    fixed_height_small: GiphyImages;
+    preview_gif: GiphyImages;
   };
 }
 
-function mapResult(r: TenorResult) {
+function mapResult(r: GiphyResult) {
   return {
     id: r.id,
-    url: r.media_formats.gif?.url ?? '',
-    preview_url: r.media_formats.tinygif?.url ?? r.media_formats.gif?.url ?? '',
-    width: r.media_formats.gif?.dims[0] ?? 0,
-    height: r.media_formats.gif?.dims[1] ?? 0,
+    url: r.images.fixed_height.url,
+    preview_url: r.images.fixed_height_small?.url ?? r.images.preview_gif?.url ?? r.images.fixed_height.url,
+    width: parseInt(r.images.fixed_height.width, 10),
+    height: parseInt(r.images.fixed_height.height, 10),
   };
 }
 
 export async function searchGifs(query: string) {
-  const url = `${TENOR_BASE}/search?key=${TENOR_API_KEY}&q=${encodeURIComponent(query)}&media_filter=${MEDIA_FILTER}&limit=${LIMIT}`;
+  const url = `${GIPHY_BASE}/search?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(query)}&limit=${LIMIT}&rating=${RATING}`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error('Tenor search failed');
-  const data = await res.json() as { results: TenorResult[] };
-  return (data.results ?? []).map(mapResult);
+  if (!res.ok) throw new Error('Giphy search failed');
+  const data = await res.json() as { data: GiphyResult[] };
+  return (data.data ?? []).map(mapResult);
 }
 
 export async function trendingGifs() {
-  const url = `${TENOR_BASE}/featured?key=${TENOR_API_KEY}&media_filter=${MEDIA_FILTER}&limit=${LIMIT}`;
+  const url = `${GIPHY_BASE}/trending?api_key=${GIPHY_API_KEY}&limit=${LIMIT}&rating=${RATING}`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error('Tenor trending failed');
-  const data = await res.json() as { results: TenorResult[] };
-  return (data.results ?? []).map(mapResult);
+  if (!res.ok) throw new Error('Giphy trending failed');
+  const data = await res.json() as { data: GiphyResult[] };
+  return (data.data ?? []).map(mapResult);
 }
