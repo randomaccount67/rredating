@@ -13,6 +13,7 @@ import * as admin from '../controllers/admin.controller.js';
 import * as subscription from '../controllers/subscription.controller.js';
 import * as announcement from '../controllers/announcement.controller.js';
 import * as gifCtrl from '../controllers/gif.controller.js';
+import * as spotifyCtrl from '../controllers/spotify.controller.js';
 
 const router = Router();
 const uploadMiddleware = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
@@ -60,7 +61,10 @@ router.get('/api/subscription/status',           ...protect, subscription.getSta
 router.post('/api/subscription/cancel',          ...protect, subscription.cancel);
 router.post('/api/subscription/portal',          ...protect, subscription.portal);
 
-// ─── GIFs (supporter-only proxy to Tenor) ──────────────────────
+// ─── Spotify preview (public — no auth, cached at CDN level) ───
+router.get('/api/spotify/preview', spotifyCtrl.preview);
+
+// ─── GIFs (supporter-only proxy to Giphy) ──────────────────────
 router.get('/api/gifs/search',   ...protect, gifCtrl.search);
 router.get('/api/gifs/trending', ...protect, gifCtrl.trending);
 

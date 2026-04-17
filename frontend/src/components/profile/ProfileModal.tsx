@@ -6,6 +6,7 @@ import BadgesRow from '@/components/shared/BadgesRow';
 import UsernameDisplay from '@/components/shared/UsernameDisplay';
 import ProfileBanner from '@/components/shared/ProfileBanner';
 import ProfileBorder from '@/components/shared/ProfileBorder';
+import SpotifyPlayer from '@/components/profile/SpotifyPlayer';
 
 interface ProfileModalProps {
   profile: Profile;
@@ -127,36 +128,25 @@ export default function ProfileModal({ profile, onClose, onSendRequest, onPass, 
           </div>
         </div>
 
-        {/* Profile Music — prominent embed right below the header */}
-        {profile.is_supporter && profile.profile_music_url && (() => {
-          const match = profile.profile_music_url.match(/open\.spotify\.com\/track\/([A-Za-z0-9]+)/);
-          if (!match) return null;
-          const trackId = match[1];
-          const start = profile.profile_music_start ?? 0;
-          const embedUrl = `https://open.spotify.com/embed/track/${trackId}?utm_source=generator&theme=0${start > 0 ? `&t=${start}` : ''}`;
-          return (
-            <div
-              className="border-t-2 border-[#2F2B24]"
-              style={{ background: `linear-gradient(135deg, ${accentColor}12 0%, transparent 60%)` }}
-            >
-              <div className="flex items-center gap-2 px-5 pt-3 pb-2">
-                <div className="w-4 h-[2px]" style={{ background: accentColor }} />
-                <span className="font-mono text-[9px] tracking-widest uppercase" style={{ color: accentColor }}>
-                  ♫ their vibe
-                </span>
-              </div>
-              <iframe
-                src={embedUrl}
-                width="100%"
-                height="80"
-                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                loading="lazy"
-                style={{ border: 0, display: 'block' }}
-                title="Profile music"
-              />
+        {/* Profile Music — custom preview player right below the header */}
+        {profile.is_supporter && profile.profile_music_url && (
+          <div
+            className="border-t-2 border-[#2F2B24]"
+            style={{ background: `linear-gradient(135deg, ${accentColor}10 0%, transparent 60%)` }}
+          >
+            <div className="flex items-center gap-2 px-5 pt-3 pb-1">
+              <div className="w-4 h-[2px]" style={{ background: accentColor }} />
+              <span className="font-mono text-[9px] tracking-widest uppercase" style={{ color: accentColor }}>
+                ♫ their vibe
+              </span>
             </div>
-          );
-        })()}
+            <SpotifyPlayer
+              trackUrl={profile.profile_music_url}
+              startTime={profile.profile_music_start ?? 0}
+              accentColor={accentColor}
+            />
+          </div>
+        )}
 
         {/* Ranks */}
         <div className="px-5 py-4 border-t-2 border-[#2F2B24]">
