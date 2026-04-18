@@ -3,7 +3,7 @@ import { useApi } from '@/lib/api';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Send, ArrowLeft, AlertTriangle, Flag, UserX, HeartOff, Smile } from 'lucide-react';
+import { Send, ArrowLeft, AlertTriangle, Flag, UserX, HeartOff, Smile, CornerDownLeft, X } from 'lucide-react';
 import ReportModal from '@/components/shared/ReportModal';
 import ProfileModal from '@/components/profile/ProfileModal';
 import EmojiPicker from '@/components/chat/EmojiPicker';
@@ -12,14 +12,21 @@ import { createClient } from '@/lib/supabase';
 import { Profile } from '@/types';
 import { PartialProfile, buildProfile } from '@/lib/utils';
 
+interface ReplyTo {
+  id: string;
+  sender_id: string;
+  content: string;
+}
+
 interface Message {
   id: string;
   conversation_id: string;
   sender_id: string;
   content: string;
   created_at: string;
+  reply_to_id?: string | null;
+  reply_to?: ReplyTo | null;
 }
-
 
 interface ConversationData {
   id: string;
@@ -29,7 +36,14 @@ interface ConversationData {
   my_is_supporter: boolean;
 }
 
+function extractGifUrl(content: string): string | null {
+  const m = content.match(/^\[gif:(https?:\/\/.+)\]$/);
+  return m?.[1] ?? null;
+}
 
+function truncate(text: string, max = 60): string {
+  return text.length > max ? text.slice(0, max) + '…' : text;
+}
 
 export default function MessageThreadPage() {
   const api = useApi();
@@ -49,12 +63,46 @@ export default function MessageThreadPage() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showGifPicker, setShowGifPicker] = useState(false);
   const [showGifUpsell, setShowGifUpsell] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [highlightedMsgId, setHighlightedMsgId] = useState<string | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const gifUpsellRef = useRef<HTMLDivElement>(null);
+  const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
+
+  const scrollToMessage = useCallback((msgId: string) => {
+    const el = messageRefs.current.get(msgId);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setHighlightedMsgId(msgId);
+    setTimeout(() => setHighlightedMsgId(null), 1500);
+  }, []);
+
+  const startReply = useCallback((msg: Message) => {
+    setReplyingTo(msg);
+    inputRef.current?.focus();
+  }, []);
+
+  const handleLongPressStart = useCallback((msg: Message) => {
+    longPressTimerRef.current = setTimeout(() => startReply(msg), 500);
+  }, [startReply]);
+
+  const handleLongPressEnd = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
+
+  // Clean up long-press timer on unmount
+  useEffect(() => {
+    return () => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); };
   }, []);
 
   // Maintain presence while viewing this conversation
@@ -133,8 +181,12 @@ export default function MessageThreadPage() {
             if (!prev) return prev;
             // Deduplicate — our own send is already in state from handleSend
             if (prev.messages.some(m => m.id === newMsg.id)) return prev;
+            // Resolve reply reference from messages already in state
+            const enriched: Message = newMsg.reply_to_id
+              ? { ...newMsg, reply_to: prev.messages.find(m => m.id === newMsg.reply_to_id) ?? null }
+              : { ...newMsg, reply_to: null };
             console.log('[Realtime] appending message to state:', newMsg.id);
-            return { ...prev, messages: [...prev.messages, newMsg] };
+            return { ...prev, messages: [...prev.messages, enriched] };
           });
           setTimeout(scrollToBottom, 100);
         }
@@ -166,10 +218,17 @@ export default function MessageThreadPage() {
     if (!message.trim() || sending) return;
     setSending(true);
     setError('');
+    const replySnapshot = replyingTo;
     try {
+      const body: Record<string, unknown> = {
+        conversation_id: params.id,
+        content: message.trim(),
+      };
+      if (replySnapshot) body.reply_to_id = replySnapshot.id;
+
       const res = await api('/api/messages', {
         method: 'POST',
-        body: JSON.stringify({ conversation_id: params.id, content: message.trim() }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const d = await res.json();
@@ -177,13 +236,17 @@ export default function MessageThreadPage() {
       }
 
       const { message: newMsg } = await res.json();
+      const enriched: Message = replySnapshot
+        ? { ...newMsg, reply_to: { id: replySnapshot.id, sender_id: replySnapshot.sender_id, content: replySnapshot.content } }
+        : { ...newMsg, reply_to: null };
       setData(prev => {
         if (!prev) return prev;
-        if (prev.messages.some(m => m.id === newMsg.id)) return prev;
-        return { ...prev, messages: [...prev.messages, newMsg] };
+        if (prev.messages.some(m => m.id === enriched.id)) return prev;
+        return { ...prev, messages: [...prev.messages, enriched] };
       });
       setTimeout(scrollToBottom, 100);
       setMessage('');
+      setReplyingTo(null);
       inputRef.current?.focus();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to send');
@@ -194,18 +257,29 @@ export default function MessageThreadPage() {
 
   const handleSendGif = async (url: string) => {
     setShowGifPicker(false);
+    const replySnapshot = replyingTo;
     try {
+      const body: Record<string, unknown> = {
+        conversation_id: params.id,
+        content: `[gif:${url}]`,
+      };
+      if (replySnapshot) body.reply_to_id = replySnapshot.id;
+
       const res = await api('/api/messages', {
         method: 'POST',
-        body: JSON.stringify({ conversation_id: params.id, content: `[gif:${url}]` }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) return;
       const { message: newMsg } = await res.json();
+      const enriched: Message = replySnapshot
+        ? { ...newMsg, reply_to: { id: replySnapshot.id, sender_id: replySnapshot.sender_id, content: replySnapshot.content } }
+        : { ...newMsg, reply_to: null };
       setData(prev => {
         if (!prev) return prev;
-        if (prev.messages.some(m => m.id === newMsg.id)) return prev;
-        return { ...prev, messages: [...prev.messages, newMsg] };
+        if (prev.messages.some(m => m.id === enriched.id)) return prev;
+        return { ...prev, messages: [...prev.messages, enriched] };
       });
+      setReplyingTo(null);
       setTimeout(scrollToBottom, 100);
     } catch { /* non-critical */ }
   };
@@ -293,7 +367,6 @@ export default function MessageThreadPage() {
           <ArrowLeft size={18} />
         </Link>
 
-        {/* Clickable avatar + name — opens profile */}
         <button
           onClick={() => setShowProfile(true)}
           className="flex items-center gap-3 flex-1 min-w-0 text-left hover:opacity-80 transition-opacity"
@@ -435,7 +508,7 @@ export default function MessageThreadPage() {
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto space-y-3 mb-4 pr-1">
+      <div className="flex-1 overflow-y-auto space-y-2 mb-4 pr-1">
         {data.messages.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-[#525566] text-sm">Start the conversation. Good luck.</p>
@@ -443,36 +516,103 @@ export default function MessageThreadPage() {
         ) : (
           data.messages.map(msg => {
             const isMe = msg.sender_id === data.my_profile_id;
-            const gifMatch = msg.content.match(/^\[gif:(https?:\/\/.+)\]$/);
+            const gifUrl = extractGifUrl(msg.content);
+            const isHighlighted = highlightedMsgId === msg.id;
+
+            // Reply block — shown above the message bubble when this message is a reply
+            const replyBlock = msg.reply_to_id ? (
+              msg.reply_to ? (
+                <button
+                  type="button"
+                  onClick={() => scrollToMessage(msg.reply_to!.id)}
+                  className={`flex items-start gap-1.5 w-full px-2 py-1.5 bg-[#0D0F14] border-l-2 border-[#525566]/60 hover:bg-[#13151A] transition-colors text-left`}
+                >
+                  <CornerDownLeft size={10} className="text-[#525566] flex-shrink-0 mt-0.5" />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-mono text-[9px] text-[#525566] mb-0.5">
+                      {msg.reply_to.sender_id === data.my_profile_id ? 'you' : data.other_user.riot_id ?? 'them'}
+                    </p>
+                    {extractGifUrl(msg.reply_to.content) ? (
+                      <div className="flex items-center gap-1">
+                        <img
+                          src={extractGifUrl(msg.reply_to.content)!}
+                          alt="GIF"
+                          className="h-7 w-auto rounded object-cover"
+                        />
+                        <span className="font-mono text-[9px] text-[#525566]">GIF</span>
+                      </div>
+                    ) : (
+                      <p className="text-[#8B90A8] text-[11px] truncate">{truncate(msg.reply_to.content)}</p>
+                    )}
+                  </div>
+                </button>
+              ) : (
+                <div className="flex items-center gap-1.5 px-2 py-1.5 bg-[#0D0F14] border-l-2 border-[#525566]/30">
+                  <CornerDownLeft size={10} className="text-[#525566]/40 flex-shrink-0" />
+                  <p className="text-[#525566]/60 text-[11px] italic">Original message was deleted</p>
+                </div>
+              )
+            ) : null;
+
+            // Reply button (same for both sides; positioned per alignment)
+            const replyBtn = (
+              <button
+                type="button"
+                onClick={() => startReply(msg)}
+                className="opacity-0 group-hover:opacity-100 transition-opacity text-[#525566] hover:text-[#00E5FF] p-1 flex-shrink-0"
+                title="Reply"
+                aria-label="Reply"
+              >
+                <CornerDownLeft size={13} />
+              </button>
+            );
+
             return (
-              <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                {gifMatch ? (
-                  <div className={`max-w-[250px] ${isMe ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
-                    <img
-                      src={gifMatch[1]}
-                      alt="GIF"
-                      className="max-w-[250px] rounded object-cover"
-                      loading="lazy"
-                    />
-                    <p className="font-mono text-[9px] text-[#525566] text-right">
-                      {new Date(msg.created_at ?? Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                  </div>
-                ) : (
-                  <div
-                    className={`max-w-xs px-3 py-2 text-sm ${
-                      isMe
-                        ? 'bg-[#FF4655]/20 border border-[#FF4655]/30 text-[#E8EAF0]'
-                        : 'bg-[#1E2128] border border-[#2A2D35] text-[#E8EAF0]'
-                    }`}
-                    style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}
-                  >
-                    <p className="break-words">{msg.content}</p>
-                    <p className="font-mono text-[9px] text-[#525566] mt-1 text-right">
-                      {new Date(msg.created_at ?? Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                  </div>
-                )}
+              <div
+                key={msg.id}
+                ref={el => { if (el) messageRefs.current.set(msg.id, el); else messageRefs.current.delete(msg.id); }}
+                className={`flex items-end gap-1 ${isMe ? 'justify-end' : 'justify-start'} group`}
+                onTouchStart={() => handleLongPressStart(msg)}
+                onTouchEnd={handleLongPressEnd}
+                onTouchMove={handleLongPressEnd}
+              >
+                {/* Reply btn on left for own messages */}
+                {isMe && replyBtn}
+
+                {/* Message content column */}
+                <div className={`flex flex-col gap-0 max-w-[280px] ${isHighlighted ? 'msg-highlight' : ''}`}>
+                  {replyBlock}
+                  {gifUrl ? (
+                    <div className={`flex flex-col gap-1 ${isMe ? 'items-end' : 'items-start'}`}>
+                      <img
+                        src={gifUrl}
+                        alt="GIF"
+                        className="max-w-[250px] rounded object-cover"
+                        loading="lazy"
+                      />
+                      <p className="font-mono text-[9px] text-[#525566]">
+                        {new Date(msg.created_at ?? Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  ) : (
+                    <div
+                      className={`px-3 py-2 text-sm ${
+                        isMe
+                          ? 'bg-[#FF4655]/20 border border-[#FF4655]/30 text-[#E8EAF0]'
+                          : 'bg-[#1E2128] border border-[#2A2D35] text-[#E8EAF0]'
+                      } ${replyBlock ? '' : ''}`}
+                      style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}
+                    >
+                      <p className="break-words">{msg.content}</p>
+                      <p className="font-mono text-[9px] text-[#525566] mt-1 text-right">
+                        {new Date(msg.created_at ?? Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Reply btn on right for other's messages */}
+                {!isMe && replyBtn}
               </div>
             );
           })
@@ -485,6 +625,34 @@ export default function MessageThreadPage() {
         <div className="flex items-center gap-2 text-[#FF4655] text-xs font-mono mb-2 bg-[#FF4655]/5 border border-[#FF4655]/20 px-3 py-2">
           <AlertTriangle size={12} />
           {error}
+        </div>
+      )}
+
+      {/* Reply preview bar */}
+      {replyingTo && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-[#13151A] border border-[#2A2D35] border-b-0">
+          <div className="w-0.5 self-stretch bg-[#00E5FF] flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="font-mono text-[9px] text-[#00E5FF] mb-0.5 uppercase tracking-wider">
+              Replying to {replyingTo.sender_id === data.my_profile_id ? 'yourself' : data.other_user.riot_id ?? 'them'}
+            </p>
+            {extractGifUrl(replyingTo.content) ? (
+              <div className="flex items-center gap-1.5">
+                <img src={extractGifUrl(replyingTo.content)!} alt="GIF" className="h-6 w-auto rounded" />
+                <span className="text-[#525566] text-xs font-mono">GIF</span>
+              </div>
+            ) : (
+              <p className="text-[#8B90A8] text-xs truncate">{truncate(replyingTo.content)}</p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setReplyingTo(null)}
+            className="text-[#525566] hover:text-[#E8EAF0] transition-colors p-1 flex-shrink-0"
+            aria-label="Cancel reply"
+          >
+            <X size={14} />
+          </button>
         </div>
       )}
 
@@ -514,7 +682,10 @@ export default function MessageThreadPage() {
           placeholder="TYPE MESSAGE..."
           value={message}
           onChange={e => setMessage(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+            if (e.key === 'Escape' && replyingTo) { e.preventDefault(); setReplyingTo(null); }
+          }}
           maxLength={1000}
         />
         {/* Emoji button — all users */}

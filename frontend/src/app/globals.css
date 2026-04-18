@@ -243,6 +243,15 @@ input::placeholder, textarea::placeholder {
   100% { transform: translateY(100vh); }
 }
 
+/* Message reply highlight flash */
+@keyframes msg-highlight {
+  0% { background-color: rgba(0, 229, 255, 0.18); }
+  100% { background-color: transparent; }
+}
+.msg-highlight {
+  animation: msg-highlight 1.5s ease-out forwards;
+}
+
 /* Fade in */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }

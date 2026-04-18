@@ -19,7 +19,12 @@ export const getMessages = wrap(async (req: Request, res: Response) => {
 });
 
 export const sendMessage = wrap(async (req: Request, res: Response) => {
-  const result = await messagesService.sendMessage(req.profile!, req.body.conversation_id, req.body.content);
+  const result = await messagesService.sendMessage(
+    req.profile!,
+    req.body.conversation_id,
+    req.body.content,
+    req.body.reply_to_id ?? null,
+  );
   res.json(result);
 });
 

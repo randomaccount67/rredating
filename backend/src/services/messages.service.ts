@@ -5,6 +5,18 @@ import { PROFILE_PUBLIC_COLUMNS } from '../utils/columns.js';
 import { broadcast } from '../utils/broadcast.js';
 import type { Profile } from '../types/index.js';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+interface RawMessage {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  content: string;
+  created_at: string;
+  reply_to_id?: string | null;
+  [key: string]: unknown;
+}
+
 // ─── Messages ──────────────────────────────────────────────────
 
 export async function getMessages(profile: Profile, conversationId: string) {
@@ -35,7 +47,7 @@ export async function getMessages(profile: Profile, conversationId: string) {
       .single(),
   ]);
 
-  const messages = (messagesRes.data || []).reverse();
+  const messages = ((messagesRes.data || []).reverse()) as RawMessage[];
 
   // Mark any unread new_message notifications from this conversation as read
   // so the inbox unread indicator and navbar badge clear immediately.
@@ -46,16 +58,31 @@ export async function getMessages(profile: Profile, conversationId: string) {
     .eq('related_user', otherId)
     .eq('read', false);
 
+  // Resolve reply references in memory — no N+1 query.
+  // Parent messages are almost always in the same 200-message window.
+  const msgMap = new Map<string, { id: string; sender_id: string; content: string }>(
+    messages.map(m => [m.id, { id: m.id, sender_id: m.sender_id, content: m.content }]),
+  );
+  const enriched = messages.map(m => ({
+    ...m,
+    reply_to: m.reply_to_id ? (msgMap.get(m.reply_to_id) ?? null) : null,
+  }));
+
   return {
     id: conversationId,
     other_user: otherUserRes.data,
-    messages,
+    messages: enriched,
     my_profile_id: profile.id,
     my_is_supporter: profile.is_supporter,
   };
 }
 
-export async function sendMessage(profile: Profile, conversationId: string, content: string) {
+export async function sendMessage(
+  profile: Profile,
+  conversationId: string,
+  content: string,
+  replyToId?: string | null,
+) {
   if (!conversationId) throw badRequest('conversation_id is required');
   if (!content || !content.trim()) throw badRequest('Message content is required');
   if (content.length > 1000) throw badRequest('Message too long (max 1000 characters)');
@@ -74,14 +101,31 @@ export async function sendMessage(profile: Profile, conversationId: string, cont
   const cleaned = cleanProfanity(content.trim());
   const otherId = conv.user_a === profile.id ? conv.user_b : conv.user_a;
 
+  // Validate reply_to_id: must be a valid UUID referencing a message in this conversation.
+  // If invalid or cross-conversation, silently ignore (don't block the send).
+  let resolvedReplyToId: string | null = null;
+  if (replyToId && UUID_RE.test(replyToId)) {
+    const { data: parent } = await db
+      .from('messages')
+      .select('id')
+      .eq('id', replyToId)
+      .eq('conversation_id', conversationId)
+      .maybeSingle();
+    if (parent) resolvedReplyToId = replyToId;
+  }
+
   // Insert message
+  const insertData: Record<string, unknown> = {
+    conversation_id: conversationId,
+    sender_id: profile.id,
+    content: cleaned,
+  };
+  if (resolvedReplyToId) insertData.reply_to_id = resolvedReplyToId;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: message, error } = await db
     .from('messages')
-    .insert({
-      conversation_id: conversationId,
-      sender_id: profile.id,
-      content: cleaned,
-    })
+    .insert(insertData as any)
     .select()
     .single();
 
