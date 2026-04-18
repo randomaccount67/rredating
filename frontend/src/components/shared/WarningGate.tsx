@@ -1,7 +1,8 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { useApi } from '@/lib/api';
+import { createClient } from '@/lib/supabase';
 
 interface ActiveWarning {
   id: string;
@@ -13,14 +14,45 @@ export default function WarningGate({ children }: { children: React.ReactNode })
   const api = useApi();
   const [warnings, setWarnings] = useState<ActiveWarning[]>([]);
   const [acknowledging, setAcknowledging] = useState(false);
+  const [myProfileId, setMyProfileId] = useState<string | null>(null);
+  const inFlightRef = useRef(false);
+
+  const fetchWarnings = useCallback(async () => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+    try {
+      const r = await api('/api/warnings/active');
+      if (r.ok) {
+        const d = await r.json();
+        setWarnings(d.warnings ?? []);
+      }
+    } catch { /* non-critical */ }
+    finally { inFlightRef.current = false; }
+  }, [api]);
 
   useEffect(() => {
-    api('/api/warnings/active')
-      .then(r => (r.ok ? r.json() : { warnings: [] }))
-      .then(d => setWarnings(d.warnings ?? []))
+    fetchWarnings();
+    api('/api/profile')
+      .then(r => r.json())
+      .then(d => { if (d.profile?.id) setMyProfileId(d.profile.id); })
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!myProfileId) return;
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`warnings-gate-${myProfileId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'warnings',
+        filter: `user_id=eq.${myProfileId}`,
+      }, () => { fetchWarnings(); })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [myProfileId, fetchWarnings]);
 
   const handleAcknowledge = async () => {
     const current = warnings[0];

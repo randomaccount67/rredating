@@ -142,15 +142,25 @@ body {
 }
 
 @keyframes text-glitch {
-  0%, 88%, 100% { text-shadow: none; transform: none; }
-  89% { text-shadow: -2px 0 #00E5FF; transform: translateX(2px); }
-  90% { text-shadow: 2px 0 #FF4655; transform: translateX(-2px); }
-  91% { text-shadow: none; transform: none; }
+  0%, 75%, 100% { text-shadow: none; transform: none; }
+  77% { text-shadow: -3px 0 #00E5FF, 3px 0 #FF4655; transform: translateX(3px); }
+  79% { text-shadow: 3px 0 #00E5FF, -3px 0 #FF4655; transform: translateX(-3px); }
+  81% { text-shadow: -2px 0 #FF4655; transform: translateX(2px) skewX(-3deg); }
+  83% { text-shadow: none; transform: none; }
+  88% { text-shadow: 2px 0 #00E5FF; transform: translateX(-2px); }
+  90% { text-shadow: none; transform: none; }
 }
-.username-glitch { animation: text-glitch 3s steps(1) infinite; }
+/* display:inline-block is required for transform to apply to inline <span> elements */
+.username-glitch {
+  animation: text-glitch 2.5s steps(1) infinite;
+  display: inline-block;
+}
 
 .username-neon {
-  text-shadow: 0 0 6px currentColor, 0 0 20px currentColor, 0 0 40px currentColor;
+  /* padding gives the glow room before overflow:hidden on parent containers clips it */
+  text-shadow: 0 0 5px currentColor, 0 0 14px currentColor, 0 0 28px currentColor;
+  padding: 2px 6px;
+  display: inline-block;
 }
 
 /* Profile banner backgrounds */

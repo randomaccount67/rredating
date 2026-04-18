@@ -77,15 +77,6 @@ const EFFECTS = [
   { id: 'neon', label: 'NEON' },
 ] as const;
 
-const THEMES = [
-  { id: 'default', label: 'DEFAULT', bg: '#0B0D11', accent: '#FF4655' },
-  { id: 'midnight', label: 'MIDNIGHT', bg: '#050A1A', accent: '#7B9EFF' },
-  { id: 'ember', label: 'EMBER', bg: '#150800', accent: '#FF6B00' },
-  { id: 'toxic', label: 'TOXIC', bg: '#020A02', accent: '#39FF14' },
-  { id: 'phantom', label: 'PHANTOM', bg: '#0D0015', accent: '#BF5FFF' },
-  { id: 'arctic', label: 'ARCTIC', bg: '#020D15', accent: '#00D4FF' },
-] as const;
-
 const BANNERS = [
   { id: 'none', label: 'NONE' },
   { id: 'geometric', label: 'GEOMETRIC' },
@@ -130,7 +121,6 @@ function ProfilePageInner() {
     profile_accent_color: '#FF4655',
     profile_banner: 'none',
     username_effect: 'none',
-    profile_theme: 'default',
   });
 
   const [musicSettings, setMusicSettings] = useState({
@@ -188,7 +178,6 @@ function ProfilePageInner() {
               profile_accent_color: p.profile_accent_color ?? '#FF4655',
               profile_banner: p.profile_banner ?? 'none',
               username_effect: p.username_effect ?? 'none',
-              profile_theme: p.profile_theme ?? 'default',
             });
             setMusicSettings({
               profile_music_url: p.profile_music_url ?? '',
@@ -341,7 +330,7 @@ function ProfilePageInner() {
   const chipOnLime = `${chipBase} border-[#FF4655] bg-[#FF4655]/8 text-[#FF4655]`;
   const chipOnCyan = `${chipBase} border-[#00D4FF] bg-[#00D4FF]/8 text-[#00D4FF]`;
   const chipOnPurple = `${chipBase} border-[#8B6FFF] bg-[#8B6FFF]/8 text-[#8B6FFF]`;
-  const chipOnGold = `${chipBase} border-[#FFE84D] bg-[#FFE84D]/8 text-[#FFE84D]`;
+
 
   const SectionHeader = ({ color, children }: { color: string; children: React.ReactNode }) => (
     <div className="flex items-center gap-2 mb-4">
@@ -438,7 +427,7 @@ function ProfilePageInner() {
                   {[
                     'Animated profile borders', 'Username effects',
                     'Priority in Browse', '560 char bio (2×)',
-                    '5 agents (vs 3)', 'Profile themes & banners',
+                    '5 agents (vs 3)', 'Profile banners',
                     'Supporter badge', 'Custom accent colors',
                   ].map(perk => (
                     <div key={perk} className="flex items-center gap-1.5">
@@ -565,31 +554,6 @@ function ProfilePageInner() {
                     <button key={b.id} type="button" className={chipOff}>{b.label}</button>
                   ) : (
                     <LockedOption key={b.id} label={b.label} />
-                  )
-                ))}
-              </div>
-            </div>
-
-            {/* Profile Theme */}
-            <div className="mb-5">
-              <label className="label block mb-2">PROFILE THEME</label>
-              <div className="flex flex-wrap gap-2">
-                {THEMES.map(t => (
-                  isSupporter ? (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => setCosmetics(prev => ({ ...prev, profile_theme: t.id }))}
-                      className={cosmetics.profile_theme === t.id ? chipOnGold : chipOff}
-                      style={cosmetics.profile_theme === t.id ? { borderColor: t.accent, color: t.accent, background: `${t.accent}10` } : {}}
-                    >
-                      <span className="inline-block w-2 h-2 rounded-full mr-1" style={{ background: t.accent }} />
-                      {t.label}
-                    </button>
-                  ) : t.id === 'default' ? (
-                    <button key={t.id} type="button" className={chipOff}>{t.label}</button>
-                  ) : (
-                    <LockedOption key={t.id} label={t.label} />
                   )
                 ))}
               </div>
