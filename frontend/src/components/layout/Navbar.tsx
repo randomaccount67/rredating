@@ -74,6 +74,14 @@ export default function Navbar() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
+  // Refresh badge immediately when a conversation page marks its messages read
+  useEffect(() => {
+    const handler = () => fetchUnread();
+    window.addEventListener('rr:notifications-read', handler);
+    return () => window.removeEventListener('rr:notifications-read', handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Realtime: backend broadcasts to notification:<myProfileId> after every notification insert
   useEffect(() => {
     if (!myProfileId) return;

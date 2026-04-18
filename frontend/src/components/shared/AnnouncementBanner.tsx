@@ -26,28 +26,24 @@ export default function AnnouncementBanner() {
   if (!announcement) return null;
 
   return (
-    <div className="w-full bg-[#1C1A10] border-y border-[#FFE84D]/20 py-2.5 px-4">
-      <div className="max-w-7xl mx-auto flex items-center gap-3">
-        {/* Megaphone icon */}
-        <svg
-          className="flex-shrink-0 text-[#FFE84D]"
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M3 11l19-9-9 19-2-8-8-2z" />
-        </svg>
-
-        <p className="flex-1 text-[#E8D97A] text-sm leading-snug">
-          {announcement.content}
-        </p>
-      </div>
+    <div className="w-full bg-[#1C1A10] border-y border-[#FFE84D]/20 py-2.5 px-4 flex items-center justify-center gap-3">
+      <svg
+        className="flex-shrink-0 text-[#FFE84D]"
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M3 11l19-9-9 19-2-8-8-2z" />
+      </svg>
+      <p className="text-[#E8D97A] text-sm leading-snug text-center">
+        {announcement.content}
+      </p>
     </div>
   );
 }

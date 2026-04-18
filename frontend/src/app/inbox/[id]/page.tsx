@@ -96,6 +96,9 @@ export default function MessageThreadPage() {
         api('/api/notifications/read', {
           method: 'POST',
           body: JSON.stringify({ related_user_id: d.other_user?.id }),
+        }).then(() => {
+          // Signal the Navbar to refresh its unread badge immediately
+          window.dispatchEvent(new CustomEvent('rr:notifications-read'));
         }).catch(() => {});
       } catch (e) {
         console.error(e);
