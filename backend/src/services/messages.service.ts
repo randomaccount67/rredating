@@ -61,6 +61,13 @@ async function runChatAnalysis(
       .eq('id', messageId);
 
     console.log(`[chat-analysis] rating=${result.rating} for message=${messageId}`);
+
+    // Notify the conversation channel so clients update the icon in real-time
+    await broadcast(`conversation:${conversationId}`, 'message_analyzed', {
+      message_id: messageId,
+      rating: result.rating,
+      reason: result.reason,
+    });
   } catch {
     // Analysis failure must never affect message delivery
   }

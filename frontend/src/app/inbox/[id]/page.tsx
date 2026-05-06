@@ -201,6 +201,27 @@ export default function MessageThreadPage() {
           setTimeout(scrollToBottom, 100);
         }
       )
+      .on(
+        'broadcast',
+        { event: 'message_analyzed' },
+        (payload) => {
+          const { message_id, rating, reason } = payload.payload as {
+            message_id: string; rating: string; reason: string;
+          };
+          if (!message_id) return;
+          setData(prev => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              messages: prev.messages.map(m =>
+                m.id === message_id
+                  ? { ...m, analysis_rating: rating, analysis_reason: reason }
+                  : m,
+              ),
+            };
+          });
+        }
+      )
       .subscribe((status, err) => {
         console.log('[Realtime] conversation channel status:', status, err ?? '');
       });

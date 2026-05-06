@@ -28,7 +28,7 @@ function getModel() {
   if (!key) return null;
   if (!genAI) genAI = new GoogleGenerativeAI(key);
   return genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash-lite-preview-06-17',
+    model: 'gemini-2.5-flash-lite',
     systemInstruction: SYSTEM_PROMPT,
   });
 }
@@ -58,7 +58,8 @@ export async function analyzeMessage(
     if (typeof parsed.reason !== 'string') return null;
 
     return { rating: parsed.rating as string, reason: parsed.reason };
-  } catch {
+  } catch (err: unknown) {
+    console.error('[chat-analysis] error:', (err as Error)?.message ?? err);
     return null;
   }
 }
