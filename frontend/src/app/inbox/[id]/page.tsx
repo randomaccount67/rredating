@@ -8,6 +8,7 @@ import ReportModal from '@/components/shared/ReportModal';
 import ProfileModal from '@/components/profile/ProfileModal';
 import EmojiPicker from '@/components/chat/EmojiPicker';
 import GifPicker from '@/components/chat/GifPicker';
+import ChatAnalysisIcon from '@/components/chat/ChatAnalysisIcon';
 import { createClient } from '@/lib/supabase';
 import { Profile } from '@/types';
 import { PartialProfile, buildProfile } from '@/lib/utils';
@@ -26,6 +27,8 @@ interface Message {
   created_at: string;
   reply_to_id?: string | null;
   reply_to?: ReplyTo | null;
+  analysis_rating?: string | null;
+  analysis_reason?: string | null;
 }
 
 interface ConversationData {
@@ -65,6 +68,7 @@ export default function MessageThreadPage() {
   const [showGifUpsell, setShowGifUpsell] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [highlightedMsgId, setHighlightedMsgId] = useState<string | null>(null);
+  const [chatAnalysisEnabled, setChatAnalysisEnabled] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -131,6 +135,12 @@ export default function MessageThreadPage() {
       leave();
     };
   }, [params.id]);
+
+  useEffect(() => {
+    api('/api/chat-analysis/status')
+      .then(async r => { if (r.ok) { const d = await r.json(); setChatAnalysisEnabled(!!d.enabled); } })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     async function fetchConversation() {
@@ -610,6 +620,11 @@ export default function MessageThreadPage() {
                     </div>
                   )}
                 </div>
+
+                {/* Analysis icon — shown to both sides when enabled */}
+                {chatAnalysisEnabled && (
+                  <ChatAnalysisIcon rating={msg.analysis_rating} reason={msg.analysis_reason} />
+                )}
 
                 {/* Reply btn on right for other's messages */}
                 {!isMe && replyBtn}

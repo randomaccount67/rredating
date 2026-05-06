@@ -4,6 +4,7 @@ import { badRequest, notFound, forbidden } from '../utils/errors.js';
 import { PROFILE_PUBLIC_COLUMNS } from '../utils/columns.js';
 import { broadcast } from '../utils/broadcast.js';
 import type { Profile } from '../types/index.js';
+import { analyzeMessage } from './chatAnalysis.service.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -15,6 +16,54 @@ interface RawMessage {
   created_at: string;
   reply_to_id?: string | null;
   [key: string]: unknown;
+}
+
+// ─── Chat Analysis (fire-and-forget, never throws) ─────────────
+
+async function runChatAnalysis(
+  messageId: string,
+  messageContent: string,
+  senderId: string,
+  recipientId: string,
+  conversationId: string,
+) {
+  try {
+    const { data: profiles } = await db
+      .from('profiles')
+      .select('id, chat_analysis_enabled')
+      .in('id', [senderId, recipientId]);
+
+    const anyEnabled = (profiles as Array<Record<string, unknown>> | null)
+      ?.some(p => p.chat_analysis_enabled);
+    if (!anyEnabled) return;
+
+    const { data: recentMessages } = await db
+      .from('messages')
+      .select('sender_id, content')
+      .eq('conversation_id', conversationId)
+      .neq('id', messageId)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    const history = ((recentMessages as Array<Record<string, unknown>> | null) ?? [])
+      .reverse()
+      .map(m => ({
+        sender: m.sender_id === senderId ? 'you' : 'them',
+        content: m.content as string,
+      }));
+
+    const result = await analyzeMessage(messageContent, history);
+    if (!result) return;
+
+    await db
+      .from('messages')
+      .update({ analysis_rating: result.rating, analysis_reason: result.reason } as Record<string, unknown>)
+      .eq('id', messageId);
+
+    console.log(`[chat-analysis] rating=${result.rating} for message=${messageId}`);
+  } catch {
+    // Analysis failure must never affect message delivery
+  }
 }
 
 // ─── Messages ──────────────────────────────────────────────────
@@ -130,6 +179,10 @@ export async function sendMessage(
     .single();
 
   if (error) throw new Error(error.message);
+
+  // Fire-and-forget: analyze the message without blocking the response
+  const msg = message as RawMessage;
+  void runChatAnalysis(msg.id, msg.content, profile.id, otherId, conversationId);
 
   // Broadcast new message to the conversation channel (recipient sees it instantly in chat)
   await broadcast(`conversation:${conversationId}`, 'new_message', { message });

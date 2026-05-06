@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { useApi } from '@/lib/api';
 import { createClient } from '@/lib/supabase';
 import AnnouncementBanner from '@/components/shared/AnnouncementBanner';
+import TextingTheoryAnnouncement from '@/components/shared/TextingTheoryAnnouncement';
 
 function HeroCTA() {
   const api = useApi();
@@ -91,6 +92,7 @@ export default function LandingPage() {
 
   return (
     <div className="relative overflow-hidden">
+      <TextingTheoryAnnouncement />
       {/* Background effects */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         {/* Red glow — bottom left */}

@@ -3,13 +3,15 @@ import { useApi } from '@/lib/api';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
-import { AlertTriangle, Eye, Contrast, Check } from 'lucide-react';
+import { AlertTriangle, Eye, Contrast, Check, Target } from 'lucide-react';
 
 export default function SettingsPage() {
   const api = useApi();
   const router = useRouter();
   const [colorblind, setColorblind] = useState(false);
   const [highContrast, setHighContrast] = useState(false);
+  const [chatAnalysis, setChatAnalysis] = useState(false);
+  const [chatAnalysisLoading, setChatAnalysisLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
@@ -20,6 +22,9 @@ export default function SettingsPage() {
       setColorblind(localStorage.getItem('colorblind_mode') === 'true');
       setHighContrast(localStorage.getItem('high_contrast_mode') === 'true');
     } catch { /* ignore */ }
+    api('/api/chat-analysis/status')
+      .then(async r => { if (r.ok) { const d = await r.json(); setChatAnalysis(!!d.enabled); } })
+      .catch(() => {});
   }, []);
 
   const toggleColorblind = (val: boolean) => {
@@ -38,6 +43,17 @@ export default function SettingsPage() {
       if (val) document.documentElement.setAttribute('data-high-contrast', '');
       else document.documentElement.removeAttribute('data-high-contrast');
     } catch { /* ignore */ }
+  };
+
+  const toggleChatAnalysis = async () => {
+    if (chatAnalysisLoading) return;
+    setChatAnalysisLoading(true);
+    try {
+      const res = await api('/api/chat-analysis/toggle', { method: 'POST' });
+      if (res.ok) { const d = await res.json(); setChatAnalysis(!!d.enabled); }
+    } catch { /* ignore */ } finally {
+      setChatAnalysisLoading(false);
+    }
   };
 
   const handleSaveSettings = () => {
@@ -123,6 +139,23 @@ export default function SettingsPage() {
               label="HIGH CONTRAST"
               description="Increases border and text contrast for better readability"
               icon={<Contrast size={16} />}
+            />
+          </div>
+        </div>
+
+        {/* Features */}
+        <div className="bg-[#171A22] border border-[#252830]" style={{ borderTop: '3px solid #1BADA6' }}>
+          <div className="p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-4 h-[2px] bg-[#1BADA6]" />
+              <span className="font-mono text-[9px] tracking-widest uppercase text-[#505568]">FEATURES</span>
+            </div>
+            <Toggle
+              checked={chatAnalysis}
+              onChange={chatAnalysisLoading ? () => {} : toggleChatAnalysis}
+              label="CHAT ANALYSIS (TEXTINGTHEORY MODE)"
+              description="AI analyzes your messages like chess moves. Messages are sent to Google Gemini for analysis."
+              icon={<Target size={16} />}
             />
           </div>
         </div>

@@ -31,5 +31,7 @@ export const config = {
   /** Upstash Redis — optional. When absent, rate limiting falls back to in-process memory. */
   upstashRedisUrl: process.env.UPSTASH_REDIS_REST_URL ?? null,
   upstashRedisToken: process.env.UPSTASH_REDIS_REST_TOKEN ?? null,
+  /** Gemini API key — optional. When absent, chat analysis is silently disabled. */
+  geminiApiKey: process.env.GEMINI_API_KEY ?? null,
 } as const;
 

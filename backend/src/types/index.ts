@@ -60,6 +60,9 @@ export interface Profile {
   profile_music_url: string | null;
   profile_music_start: number;
   profile_music_volume: number;
+  // Chat analysis
+  chat_analysis_enabled: boolean;
+  has_seen_analysis_announcement: boolean;
 }
 
 export interface Report {
@@ -93,6 +96,8 @@ export interface Message {
   sender_id: string;
   content: string;
   created_at: string;
+  analysis_rating?: string | null;
+  analysis_reason?: string | null;
 }
 
 export interface Notification {

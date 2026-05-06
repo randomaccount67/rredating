@@ -14,6 +14,7 @@ import * as subscription from '../controllers/subscription.controller.js';
 import * as announcement from '../controllers/announcement.controller.js';
 import * as gifCtrl from '../controllers/gif.controller.js';
 import * as warningsCtrl from '../controllers/warnings.controller.js';
+import * as chatAnalysis from '../controllers/chatAnalysis.controller.js';
 
 const router = Router();
 const uploadMiddleware = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
@@ -64,6 +65,11 @@ router.post('/api/subscription/portal',          ...protect, subscription.portal
 // ─── GIFs (supporter-only proxy to Giphy) ──────────────────────
 router.get('/api/gifs/search',   ...protect, gifCtrl.search);
 router.get('/api/gifs/trending', ...protect, gifCtrl.trending);
+
+// ─── Chat Analysis ─────────────────────────────────────────────
+router.get('/api/chat-analysis/status',                ...protect, chatAnalysis.getStatus);
+router.post('/api/chat-analysis/toggle',               ...protect, chatAnalysis.toggle);
+router.post('/api/chat-analysis/dismiss-announcement', ...protect, chatAnalysis.dismissAnnouncement);
 
 // ─── Announcements (public read) ───────────────────────────────
 router.get('/api/announcements/active', announcement.getActive);
