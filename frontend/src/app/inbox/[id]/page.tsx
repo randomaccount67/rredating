@@ -205,8 +205,8 @@ export default function MessageThreadPage() {
         'broadcast',
         { event: 'message_analyzed' },
         (payload) => {
-          const { message_id, rating, reason } = payload.payload as {
-            message_id: string; rating: string; reason: string;
+          const { message_id, rating } = payload.payload as {
+            message_id: string; rating: string;
           };
           if (!message_id) return;
           setData(prev => {
@@ -214,9 +214,7 @@ export default function MessageThreadPage() {
             return {
               ...prev,
               messages: prev.messages.map(m =>
-                m.id === message_id
-                  ? { ...m, analysis_rating: rating, analysis_reason: reason }
-                  : m,
+                m.id === message_id ? { ...m, analysis_rating: rating } : m,
               ),
             };
           });
@@ -610,6 +608,11 @@ export default function MessageThreadPage() {
                 {/* Reply btn on left for own messages */}
                 {isMe && replyBtn}
 
+                {/* Analysis icon — LEFT of bubble for sent messages */}
+                {isMe && chatAnalysisEnabled && (
+                  <ChatAnalysisIcon rating={msg.analysis_rating} isMe={true} />
+                )}
+
                 {/* Message content column */}
                 <div className={`flex flex-col gap-0 max-w-[280px] ${isHighlighted ? 'msg-highlight' : ''}`}>
                   {replyBlock}
@@ -642,9 +645,9 @@ export default function MessageThreadPage() {
                   )}
                 </div>
 
-                {/* Analysis icon — shown to both sides when enabled */}
-                {chatAnalysisEnabled && (
-                  <ChatAnalysisIcon rating={msg.analysis_rating} reason={msg.analysis_reason} />
+                {/* Analysis icon — RIGHT of bubble for received messages */}
+                {!isMe && chatAnalysisEnabled && (
+                  <ChatAnalysisIcon rating={msg.analysis_rating} isMe={false} />
                 )}
 
                 {/* Reply btn on right for other's messages */}

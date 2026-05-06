@@ -57,7 +57,7 @@ async function runChatAnalysis(
 
     await db
       .from('messages')
-      .update({ analysis_rating: result.rating, analysis_reason: result.reason } as Record<string, unknown>)
+      .update({ analysis_rating: result.rating } as Record<string, unknown>)
       .eq('id', messageId);
 
     console.log(`[chat-analysis] rating=${result.rating} for message=${messageId}`);
@@ -66,7 +66,6 @@ async function runChatAnalysis(
     await broadcast(`conversation:${conversationId}`, 'message_analyzed', {
       message_id: messageId,
       rating: result.rating,
-      reason: result.reason,
     });
   } catch {
     // Analysis failure must never affect message delivery
