@@ -608,9 +608,9 @@ export default function MessageThreadPage() {
                 {/* Reply btn on left for own messages */}
                 {isMe && replyBtn}
 
-                {/* Analysis icon — LEFT of bubble for sent messages */}
-                {isMe && chatAnalysisEnabled && (
-                  <ChatAnalysisIcon rating={msg.analysis_rating} isMe={true} />
+                {/* Analysis icon — LEFT of bubble for received messages */}
+                {!isMe && chatAnalysisEnabled && (
+                  <ChatAnalysisIcon rating={msg.analysis_rating} isMe={false} />
                 )}
 
                 {/* Message content column */}
@@ -645,9 +645,9 @@ export default function MessageThreadPage() {
                   )}
                 </div>
 
-                {/* Analysis icon — RIGHT of bubble for received messages */}
-                {!isMe && chatAnalysisEnabled && (
-                  <ChatAnalysisIcon rating={msg.analysis_rating} isMe={false} />
+                {/* Analysis icon — RIGHT of bubble for sent messages */}
+                {isMe && chatAnalysisEnabled && (
+                  <ChatAnalysisIcon rating={msg.analysis_rating} isMe={true} />
                 )}
 
                 {/* Reply btn on right for other's messages */}
