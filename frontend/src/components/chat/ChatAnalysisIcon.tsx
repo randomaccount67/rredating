@@ -12,16 +12,16 @@ interface TooltipPos {
   right?: number;
 }
 
-const RATING_META: Record<string, { bg: string; symbol: string; label: string; reason: string }> = {
-  brilliant:  { bg: '#1BADA6', symbol: '!!', label: 'Brilliant',   reason: 'holy shit what a shot' },
-  great:      { bg: '#5C8BB0', symbol: '!',  label: 'Great',       reason: 'green as fuck' },
-  best:       { bg: '#96BC4B', symbol: '✓',  label: 'Best',        reason: 'W shot, not much you could have done better here' },
-  good:       { bg: '#95AF57', symbol: '·',  label: 'Good',        reason: 'not bad kid' },
-  book:       { bg: '#A88B65', symbol: '=',  label: 'Book',        reason: 'standard, not much to say here' },
-  inaccuracy: { bg: '#F7C631', symbol: '?!', label: 'Inaccuracy',  reason: "could be better but like you didn't sell anything" },
-  mistake:    { bg: '#E58F2A', symbol: '?',  label: 'Mistake',     reason: "yeah that just wasn't the shot" },
-  blunder:    { bg: '#CA3431', symbol: '??', label: 'Blunder',     reason: 'what the actual fuck are you doing?' },
-  miss:       { bg: '#DB73A0', symbol: '✕',  label: 'Miss',        reason: 'they gave you a layup and you just completely missed it or you hate them' },
+const RATING_META: Record<string, { label: string; reason: string }> = {
+  brilliant:  { label: 'Brilliant',   reason: 'holy shit what a shot' },
+  great:      { label: 'Great',       reason: 'green as fuck' },
+  best:       { label: 'Best',        reason: 'W shot, not much you could have done better here' },
+  good:       { label: 'Good',        reason: 'not bad kid' },
+  book:       { label: 'Book',        reason: 'standard, not much to say here' },
+  inaccuracy: { label: 'Inaccuracy',  reason: "could be better but like you didn't sell anything" },
+  mistake:    { label: 'Mistake',     reason: "yeah that just wasn't the shot" },
+  blunder:    { label: 'Blunder',     reason: 'what the actual fuck are you doing?' },
+  miss:       { label: 'Miss',        reason: 'they gave you a layup and you just completely missed it or you hate them' },
 };
 
 export default function ChatAnalysisIcon({ rating, isMe }: Props) {
@@ -31,9 +31,7 @@ export default function ChatAnalysisIcon({ rating, isMe }: Props) {
   const openTooltip = useCallback(() => {
     if (!btnRef.current) return;
     const rect = btnRef.current.getBoundingClientRect();
-    // Place tooltip bottom 8px above the button's top edge
     const bottom = window.innerHeight - rect.top + 8;
-    // Open to the right if there's room (220px), otherwise to the left
     const spaceRight = window.innerWidth - rect.left;
     const pos: TooltipPos = { bottom };
     if (spaceRight >= 220) {
@@ -63,16 +61,16 @@ export default function ChatAnalysisIcon({ rating, isMe }: Props) {
         onMouseLeave={closeTooltip}
         onTouchStart={e => { e.stopPropagation(); tooltip ? closeTooltip() : openTooltip(); }}
         onTouchEnd={e => e.stopPropagation()}
-        className="flex items-center justify-center rounded-full text-white font-extrabold select-none"
-        style={{
-          width: 24,
-          height: 24,
-          background: meta.bg,
-          fontSize: meta.symbol.length > 1 ? 8 : 11,
-          lineHeight: 1,
-        }}
+        className="flex items-center justify-center select-none bg-transparent border-0 p-0 cursor-pointer"
       >
-        {meta.symbol}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={`/icons/chess/${rating}.png`}
+          alt={rating}
+          width={32}
+          height={32}
+          draggable={false}
+        />
       </button>
 
       {tooltip && (
@@ -96,9 +94,9 @@ export default function ChatAnalysisIcon({ rating, isMe }: Props) {
         >
           <p
             className="font-bold mb-1"
-            style={{ color: meta.bg, fontFamily: 'Barlow Condensed, sans-serif', fontSize: 13 }}
+            style={{ fontFamily: 'Barlow Condensed, sans-serif', fontSize: 13, color: '#E8EAF0' }}
           >
-            {meta.label.toUpperCase()} {meta.symbol}
+            {meta.label.toUpperCase()}
           </p>
           <p style={{ color: '#8B90A8', fontSize: 13, lineHeight: 1.4, fontFamily: 'monospace' }}>
             {meta.reason}
