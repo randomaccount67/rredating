@@ -45,7 +45,7 @@ function getModel() {
   if (!key) return null;
   if (!genAI) genAI = new GoogleGenerativeAI(key);
   return genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash-lite',
+    model: 'gemini-2.5-flash',
     systemInstruction: SYSTEM_PROMPT,
   });
 }
