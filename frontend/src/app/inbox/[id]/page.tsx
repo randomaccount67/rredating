@@ -69,6 +69,8 @@ export default function MessageThreadPage() {
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [highlightedMsgId, setHighlightedMsgId] = useState<string | null>(null);
   const [chatAnalysisEnabled, setChatAnalysisEnabled] = useState(false);
+  const [rankedEnabled, setRankedEnabled] = useState(false);
+  const [rankToast, setRankToast] = useState<{ type: 'up' | 'down'; text: string } | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -136,9 +138,17 @@ export default function MessageThreadPage() {
     };
   }, [params.id]);
 
+  const RR_GAINS: Record<string, number> = {
+    brilliant: 20, great: 10, best: 15, good: 5, book: 0,
+    inaccuracy: -5, mistake: -10, miss: -15, blunder: -20,
+  };
+
   useEffect(() => {
     api('/api/chat-analysis/status')
       .then(async r => { if (r.ok) { const d = await r.json(); setChatAnalysisEnabled(!!d.enabled); } })
+      .catch(() => {});
+    api('/api/chat-analysis/ranked-status')
+      .then(async r => { if (r.ok) { const d = await r.json(); setRankedEnabled(!!d.ranked_enabled); } })
       .catch(() => {});
   }, []);
 
@@ -226,6 +236,26 @@ export default function MessageThreadPage() {
 
     return () => { supabase.removeChannel(channel); };
   }, [params.id, scrollToBottom]);
+
+  useEffect(() => {
+    const myProfileId = data?.my_profile_id;
+    if (!myProfileId || !rankedEnabled) return;
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`ranked:${myProfileId}`)
+      .on('broadcast', { event: 'rank_change' }, (payload) => {
+        const { newRank, direction } = payload.payload as {
+          oldRank: string; newRank: string; newRR: number; direction: 'up' | 'down';
+        };
+        const text = direction === 'up'
+          ? `Rank Up! You are now ${newRank}`
+          : `Deranked to ${newRank}`;
+        setRankToast({ type: direction, text });
+        setTimeout(() => setRankToast(null), 4000);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [data?.my_profile_id, rankedEnabled]);
 
   useEffect(() => {
     scrollToBottom();
@@ -536,6 +566,21 @@ export default function MessageThreadPage() {
         </div>
       )}
 
+      {/* Rank change toast */}
+      {rankToast && (
+        <div
+          className={`fixed top-20 left-1/2 -translate-x-1/2 z-50 px-5 py-3 text-sm font-bold uppercase text-white pointer-events-none`}
+          style={{
+            fontFamily: 'Barlow Condensed, sans-serif',
+            background: rankToast.type === 'up' ? '#16a34a' : '#FF4655',
+            border: rankToast.type === 'up' ? '1px solid rgba(74,222,128,0.4)' : '1px solid rgba(255,70,85,0.4)',
+            clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)',
+          }}
+        >
+          {rankToast.text}
+        </div>
+      )}
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto space-y-2 mb-4 pr-1">
         {data.messages.length === 0 ? (
@@ -609,9 +654,19 @@ export default function MessageThreadPage() {
                 {isMe && replyBtn}
 
                 {/* Analysis icon — LEFT of bubble for received messages */}
-                {!isMe && chatAnalysisEnabled && (
-                  <ChatAnalysisIcon rating={msg.analysis_rating} isMe={false} />
-                )}
+                {!isMe && chatAnalysisEnabled && (() => {
+                  const rrChange = msg.analysis_rating ? (RR_GAINS[msg.analysis_rating] ?? 0) : 0;
+                  return (
+                    <div className="flex flex-col items-center self-end gap-0.5">
+                      <ChatAnalysisIcon rating={msg.analysis_rating} isMe={false} />
+                      {rankedEnabled && msg.analysis_rating && rrChange !== 0 && (
+                        <span className={`font-mono text-[10px] font-bold leading-none ${rrChange > 0 ? 'text-green-400' : 'text-[#FF4655]'}`}>
+                          {rrChange > 0 ? '+' : ''}{rrChange}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Message content column */}
                 <div className={`flex flex-col gap-0 max-w-[280px] ${isHighlighted ? 'msg-highlight' : ''}`}>
@@ -646,9 +701,19 @@ export default function MessageThreadPage() {
                 </div>
 
                 {/* Analysis icon — RIGHT of bubble for sent messages */}
-                {isMe && chatAnalysisEnabled && (
-                  <ChatAnalysisIcon rating={msg.analysis_rating} isMe={true} />
-                )}
+                {isMe && chatAnalysisEnabled && (() => {
+                  const rrChange = msg.analysis_rating ? (RR_GAINS[msg.analysis_rating] ?? 0) : 0;
+                  return (
+                    <div className="flex flex-col items-center self-end gap-0.5">
+                      <ChatAnalysisIcon rating={msg.analysis_rating} isMe={true} />
+                      {rankedEnabled && msg.analysis_rating && rrChange !== 0 && (
+                        <span className={`font-mono text-[10px] font-bold leading-none ${rrChange > 0 ? 'text-green-400' : 'text-[#FF4655]'}`}>
+                          {rrChange > 0 ? '+' : ''}{rrChange}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Reply btn on right for other's messages */}
                 {!isMe && replyBtn}

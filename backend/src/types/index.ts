@@ -63,6 +63,11 @@ export interface Profile {
   // Chat analysis
   chat_analysis_enabled: boolean;
   has_seen_analysis_announcement: boolean;
+  // Ranked
+  ranked_enabled: boolean;
+  texting_rr: number;
+  texting_rank: string;
+  total_messages_analyzed: number;
 }
 
 export interface Report {

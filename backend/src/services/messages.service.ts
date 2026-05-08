@@ -5,6 +5,7 @@ import { PROFILE_PUBLIC_COLUMNS } from '../utils/columns.js';
 import { broadcast } from '../utils/broadcast.js';
 import type { Profile } from '../types/index.js';
 import { analyzeMessage } from './chatAnalysis.service.js';
+import { RR_GAINS, getRankFromRR, getConsecutiveCount } from '../utils/rankedSystem.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -67,6 +68,51 @@ async function runChatAnalysis(
       message_id: messageId,
       rating: result.rating,
     });
+
+    // ─── Ranked RR update ──────────────────────────────────────────
+    const { data: senderProfile } = await db
+      .from('profiles')
+      .select('ranked_enabled, texting_rr, total_messages_analyzed')
+      .eq('id', senderId)
+      .single();
+
+    const sp = senderProfile as Record<string, unknown> | null;
+    if (!sp?.ranked_enabled) return;
+
+    const consecutive = await getConsecutiveCount(conversationId, senderId, messageId);
+    if (consecutive >= 2) {
+      console.log(`[ranked] skipped RR — consecutive limit for user=${senderId}`);
+      return;
+    }
+
+    const gain = RR_GAINS[result.rating] ?? 0;
+    if (gain === 0) return;
+
+    const currentRR = (sp.texting_rr as number) ?? 0;
+    const newRR = Math.max(0, currentRR + gain);
+    const oldRank = getRankFromRR(currentRR);
+    const newRank = getRankFromRR(newRR);
+    const currentAnalyzed = (sp.total_messages_analyzed as number) ?? 0;
+
+    await db
+      .from('profiles')
+      .update({
+        texting_rr: newRR,
+        texting_rank: newRank,
+        total_messages_analyzed: currentAnalyzed + 1,
+      } as Record<string, unknown>)
+      .eq('id', senderId);
+
+    console.log(`[ranked] user=${senderId} rating=${result.rating} rr_change=${gain} new_rr=${newRR} rank=${newRank}`);
+
+    if (oldRank !== newRank) {
+      await broadcast(`ranked:${senderId}`, 'rank_change', {
+        oldRank,
+        newRank,
+        newRR,
+        direction: newRR > currentRR ? 'up' : 'down',
+      });
+    }
   } catch {
     // Analysis failure must never affect message delivery
   }

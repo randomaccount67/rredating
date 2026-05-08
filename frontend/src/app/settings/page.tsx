@@ -3,7 +3,7 @@ import { useApi } from '@/lib/api';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
-import { AlertTriangle, Eye, Contrast, Check, Target } from 'lucide-react';
+import { AlertTriangle, Eye, Contrast, Check, Target, Trophy } from 'lucide-react';
 
 export default function SettingsPage() {
   const api = useApi();
@@ -12,6 +12,10 @@ export default function SettingsPage() {
   const [highContrast, setHighContrast] = useState(false);
   const [chatAnalysis, setChatAnalysis] = useState(false);
   const [chatAnalysisLoading, setChatAnalysisLoading] = useState(false);
+  const [ranked, setRanked] = useState(false);
+  const [rankedLoading, setRankedLoading] = useState(false);
+  const [rankedRR, setRankedRR] = useState(0);
+  const [rankedRank, setRankedRank] = useState('Iron 1');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
@@ -24,6 +28,16 @@ export default function SettingsPage() {
     } catch { /* ignore */ }
     api('/api/chat-analysis/status')
       .then(async r => { if (r.ok) { const d = await r.json(); setChatAnalysis(!!d.enabled); } })
+      .catch(() => {});
+    api('/api/chat-analysis/ranked-status')
+      .then(async r => {
+        if (r.ok) {
+          const d = await r.json();
+          setRanked(!!d.ranked_enabled);
+          setRankedRR(d.texting_rr ?? 0);
+          setRankedRank(d.texting_rank ?? 'Iron 1');
+        }
+      })
       .catch(() => {});
   }, []);
 
@@ -56,6 +70,21 @@ export default function SettingsPage() {
     }
   };
 
+  const toggleRanked = async () => {
+    if (rankedLoading || !chatAnalysis) return;
+    setRankedLoading(true);
+    try {
+      const res = await api('/api/chat-analysis/toggle-ranked', { method: 'POST' });
+      if (res.ok) {
+        const d = await res.json();
+        setRanked(!!d.ranked_enabled);
+        if (d.chat_analysis_enabled) setChatAnalysis(true);
+      }
+    } catch { /* ignore */ } finally {
+      setRankedLoading(false);
+    }
+  };
+
   const handleSaveSettings = () => {
     // Settings are already persisted to localStorage on each toggle.
     // This button gives users explicit confirmation that settings are saved.
@@ -81,31 +110,37 @@ export default function SettingsPage() {
     }
   };
 
-  const Toggle = ({ checked, onChange, label, description, icon }: {
+  const Toggle = ({ checked, onChange, label, description, icon, disabled, extra }: {
     checked: boolean;
     onChange: (val: boolean) => void;
     label: string;
     description: string;
     icon: React.ReactNode;
+    disabled?: boolean;
+    extra?: React.ReactNode;
   }) => (
-    <div className="flex items-center justify-between gap-4 py-4 border-b border-[#252830] last:border-0">
-      <div className="flex items-center gap-3">
-        <div className="text-[#525566]">{icon}</div>
-        <div>
-          <p className="text-sm font-bold text-[#E8EAF0]" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>{label}</p>
-          <p className="text-[#525566] text-xs font-mono mt-0.5">{description}</p>
+    <div className={`py-4 border-b border-[#252830] last:border-0 ${disabled ? 'opacity-50' : ''}`}>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="text-[#525566]">{icon}</div>
+          <div>
+            <p className="text-sm font-bold text-[#E8EAF0]" style={{ fontFamily: 'Barlow Condensed, sans-serif' }}>{label}</p>
+            <p className="text-[#525566] text-xs font-mono mt-0.5">{description}</p>
+          </div>
         </div>
+        <button
+          role="switch"
+          aria-checked={checked}
+          onClick={() => !disabled && onChange(!checked)}
+          disabled={disabled}
+          className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${checked ? 'bg-[#FF4655]' : 'bg-[#252830]'} ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+        >
+          <span
+            className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${checked ? 'translate-x-5' : 'translate-x-0'}`}
+          />
+        </button>
       </div>
-      <button
-        role="switch"
-        aria-checked={checked}
-        onClick={() => onChange(!checked)}
-        className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${checked ? 'bg-[#FF4655]' : 'bg-[#252830]'}`}
-      >
-        <span
-          className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${checked ? 'translate-x-5' : 'translate-x-0'}`}
-        />
-      </button>
+      {extra && <div className="mt-2 ml-9">{extra}</div>}
     </div>
   );
 
@@ -156,6 +191,19 @@ export default function SettingsPage() {
               label="CHAT ANALYSIS (TEXTINGTHEORY MODE)"
               description="AI analyzes your messages like chess moves. Messages are sent to Google Gemini for analysis."
               icon={<Target size={16} />}
+            />
+            <Toggle
+              checked={ranked}
+              onChange={rankedLoading ? () => {} : toggleRanked}
+              disabled={!chatAnalysis}
+              label="RANKED MODE"
+              description="Compete for the best Texting Rank. Your messages earn or lose RR based on AI analysis. Ranks go from Iron 1 to Radiant."
+              icon={<Trophy size={16} />}
+              extra={ranked ? (
+                <p className="font-mono text-[11px] text-[#00E5FF]">
+                  Current Rank: {rankedRank} ({rankedRR} RR)
+                </p>
+              ) : undefined}
             />
           </div>
         </div>

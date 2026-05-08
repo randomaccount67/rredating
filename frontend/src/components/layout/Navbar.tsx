@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Bell, MessageSquare, Users, User, MessageCircle, X, Shield, LogOut, Settings, Menu } from 'lucide-react';
+import { Bell, MessageSquare, Users, User, MessageCircle, X, Shield, LogOut, Settings, Menu, Trophy } from 'lucide-react';
 import { useEffect, useState, useRef } from 'react';
 import { createClient } from '@/lib/supabase';
 import { useApi } from '@/lib/api';
@@ -132,6 +132,7 @@ export default function Navbar() {
     { href: '/match', label: 'BROWSE', icon: <Users size={14} aria-hidden="true" /> },
     { href: '/inbox', label: 'INBOX', icon: <MessageSquare size={14} aria-hidden="true" /> },
     { href: '/notifications', label: 'ALERTS', icon: <Bell size={14} aria-hidden="true" />, badge: unreadNotifs },
+    { href: '/leaderboard', label: 'LEADERBOARD', icon: <Trophy size={14} aria-hidden="true" /> },
     { href: '/profile', label: 'PROFILE', icon: <User size={14} aria-hidden="true" /> },
   ];
 

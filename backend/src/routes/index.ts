@@ -70,6 +70,11 @@ router.get('/api/gifs/trending', ...protect, gifCtrl.trending);
 router.get('/api/chat-analysis/status',                ...protect, chatAnalysis.getStatus);
 router.post('/api/chat-analysis/toggle',               ...protect, chatAnalysis.toggle);
 router.post('/api/chat-analysis/dismiss-announcement', ...protect, chatAnalysis.dismissAnnouncement);
+router.post('/api/chat-analysis/toggle-ranked',        ...protect, chatAnalysis.toggleRanked);
+router.get('/api/chat-analysis/ranked-status',         ...protect, chatAnalysis.getRankedStatus);
+
+// ─── Leaderboard (public) ──────────────────────────────────
+router.get('/api/leaderboard', chatAnalysis.getLeaderboard);
 
 // ─── Announcements (public read) ───────────────────────────────
 router.get('/api/announcements/active', announcement.getActive);
