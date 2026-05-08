@@ -41,6 +41,12 @@ export interface Profile {
   profile_music_url: string | null;
   profile_music_start: number;
   profile_music_volume: number;
+  // Chat analysis & ranked
+  chat_analysis_enabled?: boolean;
+  ranked_enabled?: boolean;
+  texting_rr?: number;
+  texting_rank?: string;
+  total_messages_analyzed?: number;
 }
 
 export interface Report {

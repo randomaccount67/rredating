@@ -379,6 +379,58 @@ function ProfilePageInner() {
       )}
 
       <div className="space-y-4">
+        {/* ── Ranked Mode Card ── */}
+        {profile?.ranked_enabled && (() => {
+          const rr = profile.texting_rr ?? 0;
+          const rank = profile.texting_rank ?? 'Iron 1';
+          const total = profile.total_messages_analyzed ?? 0;
+
+          const TIER_COLORS: Record<string, string> = {
+            iron: '#5E5E5E', bronze: '#CD7F32', silver: '#C0C0C0', gold: '#FFD700',
+            platinum: '#00CED1', diamond: '#B9F2FF', ascendant: '#00FF87',
+            immortal: '#FF4655', radiant: '#FFFFAA',
+          };
+          const tier = rank.toLowerCase().split(' ')[0] ?? 'iron';
+          const rankColor = TIER_COLORS[tier] ?? '#5E5E5E';
+          const isImmortalPlus = rr >= 2100;
+          const rrInTier = rr % 100;
+
+          return (
+            <div className={section} style={{ borderTop: `3px solid ${rankColor}` }}>
+              <div className="p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-4 h-[2px]" style={{ background: rankColor }} />
+                  <span className="font-mono text-[9px] tracking-widest uppercase text-[#4A4440]">TEXTING RANK</span>
+                </div>
+                <div className="flex items-end justify-between">
+                  <div>
+                    <p
+                      className="font-extrabold text-2xl uppercase leading-none"
+                      style={{ fontFamily: 'Barlow Condensed, sans-serif', color: rankColor }}
+                    >
+                      {rank}
+                    </p>
+                    <p className="font-mono text-xs text-[#857A6A] mt-1.5">
+                      {rr} RR &nbsp;·&nbsp; {total} messages analyzed
+                    </p>
+                  </div>
+                  {!isImmortalPlus && (
+                    <p className="font-mono text-[10px] text-[#4A4440] mb-0.5">{rrInTier}/100</p>
+                  )}
+                </div>
+                {!isImmortalPlus && (
+                  <div className="mt-3 h-1.5 bg-[#2F2B24] rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full"
+                      style={{ width: `${rrInTier}%`, background: rankColor }}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* ── Supporter Section ── */}
         <div className={section} style={{ borderTop: '3px solid #FFE84D' }}>
           <div className="p-5">
