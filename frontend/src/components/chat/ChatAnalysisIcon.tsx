@@ -65,7 +65,7 @@ export default function ChatAnalysisIcon({ rating, isMe }: Props) {
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={`/icons/chess/${rating}.png`}
+          src={`/${rating}.png`}
           alt={rating}
           width={32}
           height={32}
