@@ -32,9 +32,9 @@ export default function LeaderboardPage() {
           className="font-extrabold text-4xl uppercase text-[#E8EAF0] mt-1"
           style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
         >
-          RIZZ LEADERBOARD
+          RANKED LEADERBOARD
         </h1>
-        <p className="text-[#525566] text-sm font-mono mt-2">Immortal+ Ranked Texters</p>
+        <p className="text-[#525566] text-sm font-mono mt-2">Hit Immortal or higher to be displayed here</p>
       </div>
 
       {loading && (
