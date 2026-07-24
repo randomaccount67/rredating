@@ -37,6 +37,7 @@ export default function InboxPage() {
   });
   const [myProfileId, setMyProfileId] = useState<string | null>(null);
   const [viewingProfile, setViewingProfile] = useState<Profile | null>(null);
+  const [respondingIds, setRespondingIds] = useState<Set<string>>(new Set());
 
   // Fetch myProfileId directly from auth on mount — don't wait for the inbox
   // API response to provide it. supabase.auth.getUser() validates the session
@@ -110,6 +111,8 @@ export default function InboxPage() {
   const matches = chats;
 
   const handleAccept = async (requestId: string) => {
+    if (respondingIds.has(requestId)) return;
+    setRespondingIds(prev => new Set(prev).add(requestId));
     try {
       const res = await api('/api/match/respond', {
         method: 'POST',
@@ -122,10 +125,14 @@ export default function InboxPage() {
       }
     } catch (e) {
       console.error(e);
+    } finally {
+      setRespondingIds(prev => { const next = new Set(prev); next.delete(requestId); return next; });
     }
   };
 
   const handleDecline = async (requestId: string) => {
+    if (respondingIds.has(requestId)) return;
+    setRespondingIds(prev => new Set(prev).add(requestId));
     try {
       await api('/api/match/respond', {
         method: 'POST',
@@ -134,6 +141,8 @@ export default function InboxPage() {
       setItems(prev => prev.filter(i => i.id !== requestId));
     } catch (e) {
       console.error(e);
+    } finally {
+      setRespondingIds(prev => { const next = new Set(prev); next.delete(requestId); return next; });
     }
   };
 
@@ -238,14 +247,16 @@ export default function InboxPage() {
                   <div className="flex gap-2 flex-shrink-0">
                     <button
                       onClick={() => handleDecline(req.id)}
-                      className="px-3 py-1.5 text-xs font-bold uppercase border border-[#252830] text-[#525566] hover:border-[#525566] transition-all"
+                      disabled={respondingIds.has(req.id)}
+                      className="px-3 py-1.5 text-xs font-bold uppercase border border-[#252830] text-[#525566] hover:border-[#525566] transition-all disabled:opacity-50"
                       style={{ fontFamily: 'Barlow Condensed, sans-serif' }}
                     >
                       DECLINE
                     </button>
                     <button
                       onClick={() => handleAccept(req.id)}
-                      className="px-3 py-1.5 text-xs font-bold uppercase bg-[#FF4655] text-white hover:bg-[#FF5F6D] transition-colors"
+                      disabled={respondingIds.has(req.id)}
+                      className="px-3 py-1.5 text-xs font-bold uppercase bg-[#FF4655] text-white hover:bg-[#FF5F6D] transition-colors disabled:opacity-50"
                       style={{ fontFamily: 'Barlow Condensed, sans-serif', clipPath: 'polygon(0 0, calc(100% - 5px) 0, 100% 5px, 100% 100%, 0 100%)' }}
                     >
                       ACCEPT

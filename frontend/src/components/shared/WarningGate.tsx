@@ -50,7 +50,11 @@ export default function WarningGate({ children }: { children: React.ReactNode })
         table: 'warnings',
         filter: `user_id=eq.${myProfileId}`,
       }, () => { fetchWarnings(); })
-      .subscribe();
+      .subscribe((status, err) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || err) {
+          console.error('[Realtime] warnings subscription failed:', status, err ?? '');
+        }
+      });
     return () => { supabase.removeChannel(channel); };
   }, [myProfileId, fetchWarnings]);
 

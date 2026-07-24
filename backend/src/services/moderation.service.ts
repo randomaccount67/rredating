@@ -50,14 +50,16 @@ export async function blockUser(profile: Profile, blockedId: string) {
 }
 
 export async function getBlockedUsers(profile: Profile) {
-  console.log(`[moderation.getBlockedUsers] profile.id=${profile.id}`);
   const { data: blockRows, error: blockError } = await db
     .from('blocked_users')
     .select('blocked_id, created_at')
     .eq('blocker_id', profile.id)
     .order('created_at', { ascending: false });
 
-  console.log(`[moderation.getBlockedUsers] blockRows=${JSON.stringify(blockRows)}, error=${JSON.stringify(blockError)}`);
+  if (blockError) {
+    console.error('[moderation.getBlockedUsers] query failed', blockError);
+    throw new Error(`Failed to fetch blocked users: ${blockError.message}`);
+  }
   if (!blockRows || blockRows.length === 0) return { blocked: [] };
 
   const blockedIds = blockRows.map(r => r.blocked_id);

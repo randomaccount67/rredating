@@ -290,14 +290,22 @@ export async function sendRequest(profile: Profile, toProfileId: string) {
     // 1. Target must exist and not be banned
     db.from('profiles').select('id, is_banned').eq('id', toProfileId).maybeSingle(),
     // 2. Current user must not have blocked target
-    db.from('blocked_users').select('id').eq('blocker_id', profile.id).eq('blocked_id', toProfileId).maybeSingle(),
+    db.from('blocked_users').select('blocker_id').eq('blocker_id', profile.id).eq('blocked_id', toProfileId).maybeSingle(),
     // 3. Target must not have blocked current user
-    db.from('blocked_users').select('id').eq('blocker_id', toProfileId).eq('blocked_id', profile.id).maybeSingle(),
+    db.from('blocked_users').select('blocker_id').eq('blocker_id', toProfileId).eq('blocked_id', profile.id).maybeSingle(),
     // 4. No active outgoing request from us to them
     db.from('match_requests').select('id, status').eq('from_user', profile.id).eq('to_user', toProfileId).in('status', ['pending', 'matched']).maybeSingle(),
     // 5. No active incoming request from them to us (mutual match path)
     db.from('match_requests').select('id, status').eq('from_user', toProfileId).eq('to_user', profile.id).in('status', ['pending', 'matched']).maybeSingle(),
   ]);
+
+  // A failed block check must never silently pass the request through —
+  // that would make blocking a no-op whenever the query errors.
+  const blockCheckErr = blockOutRes.error || blockInRes.error;
+  if (blockCheckErr) {
+    console.error('[match.sendRequest] block check query failed', blockCheckErr);
+    throw new AppError(500, 'Unable to verify block status. Please try again.');
+  }
 
   // Evaluate checks — all use the same opaque error so callers learn nothing specific
   if (!targetRes.data || targetRes.data.is_banned) throw requestNotAllowed();
@@ -360,14 +368,20 @@ export async function sendRequest(profile: Profile, toProfileId: string) {
     return { status: 'matched', conversation_id: convId };
   }
 
-  // No existing request in either direction — insert new pending request
+  // No active request in either direction — but a row may still exist from a
+  // previous declined request (declined rows are never deleted, and the unique
+  // constraint on (from_user, to_user) covers all statuses). Upsert on that
+  // constraint so re-requesting after a decline actually flips it back to
+  // pending instead of hitting a raw 23505 duplicate-key error.
   const { data: newRequest, error } = await db
     .from('match_requests')
-    .insert({ from_user: profile.id, to_user: toProfileId, status: 'pending' })
+    .upsert(
+      { from_user: profile.id, to_user: toProfileId, status: 'pending' },
+      { onConflict: 'from_user,to_user' },
+    )
     .select()
     .single();
 
-  if (error?.code === '23505') return { status: 'pending' }; // DB-level unique constraint safety net
   if (error) throw new AppError(500, error.message);
 
   await db.from('notifications').insert({

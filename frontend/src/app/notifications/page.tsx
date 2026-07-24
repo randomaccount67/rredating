@@ -80,7 +80,11 @@ export default function NotificationsPage() {
       }, () => {
         fetchNotifs(true);
       })
-      .subscribe();
+      .subscribe((status, err) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || err) {
+          console.error('[Realtime] notifications subscription failed:', status, err ?? '');
+        }
+      });
     return () => { supabase.removeChannel(channel); };
   }, [myProfileId, fetchNotifs]);
 
