@@ -1,15 +1,44 @@
 import { db } from './db.js';
 import { PROFILE_PUBLIC_COLUMNS } from '../utils/columns.js';
+import { AppError } from '../utils/errors.js';
 import type { Profile } from '../types/index.js';
+
+/**
+ * Max distinct requests shown in the inbox "requests" tab. Only pending
+ * requests are ever rendered there (matched ones surface as conversations
+ * instead), so this also bounds how many profile joins that query does.
+ */
+const MAX_PENDING_REQUESTS = 200;
+
+/**
+ * Supabase/PostgREST puts .in() filter values directly in the request URL.
+ * With a few hundred UUIDs that URL exceeds the ~16KB header limit and the
+ * request fails outright (HeadersOverflowError) — this hit real users with
+ * large conversation counts. Chunking keeps each request well under that
+ * limit regardless of how many ids are passed in.
+ */
+const IN_FILTER_CHUNK_SIZE = 150;
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) chunks.push(arr.slice(i, i + size));
+  return chunks;
+}
 
 export async function getInbox(profile: Profile) {
   // Fetch in parallel: requests, conversations, viewers, matched user IDs
   const [requestsRes, convsRes, viewersRes, matchedRes] = await Promise.all([
+    // Only pending requests are ever displayed (matched ones show up as
+    // conversations via matchedRes below), so there's no reason to pay for
+    // a profile join on every matched request too — that was the same
+    // .in()-style volume problem, just via an embedded resource instead of
+    // an explicit filter list.
     db.from('match_requests')
       .select('id, from_user, status, created_at, profiles!match_requests_from_user_fkey(id, riot_id, riot_tag, avatar_url, current_rank, peak_rank, role, agents, music_tags, about, gender, region, favorite_artist, is_online, created_at, age)')
       .eq('to_user', profile.id)
-      .neq('status', 'declined')
-      .order('created_at', { ascending: false }),
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(MAX_PENDING_REQUESTS),
     db.from('conversations')
       .select('id, user_a, user_b, created_at')
       .or(`user_a.eq.${profile.id},user_b.eq.${profile.id}`)
@@ -22,6 +51,25 @@ export async function getInbox(profile: Profile) {
       .or(`from_user.eq.${profile.id},to_user.eq.${profile.id}`)
       .eq('status', 'matched'),
   ]);
+
+  // A failed query here must never silently degrade to an empty inbox —
+  // surface it as a real 500 instead of masquerading as "no data".
+  if (requestsRes.error) {
+    console.error('[inbox.getInbox] requests query failed', profile.id, requestsRes.error);
+    throw new AppError(500, `Failed to load match requests: ${requestsRes.error.message}`);
+  }
+  if (convsRes.error) {
+    console.error('[inbox.getInbox] conversations query failed', profile.id, convsRes.error);
+    throw new AppError(500, `Failed to load conversations: ${convsRes.error.message}`);
+  }
+  if (viewersRes.error) {
+    console.error('[inbox.getInbox] viewers query failed', profile.id, viewersRes.error);
+    throw new AppError(500, `Failed to load conversation viewers: ${viewersRes.error.message}`);
+  }
+  if (matchedRes.error) {
+    console.error('[inbox.getInbox] matched query failed', profile.id, matchedRes.error);
+    throw new AppError(500, `Failed to load matched requests: ${matchedRes.error.message}`);
+  }
 
   // Build last-seen map
   const lastSeenByConv: Record<string, string> = {};
@@ -55,27 +103,47 @@ export async function getInbox(profile: Profile) {
   );
   const conversationIds = conversations.map((c: any) => c.id);
 
-  const [profilesRes, messagesRes] = await Promise.all([
-    otherUserIds.length
-      ? db.from('profiles').select(PROFILE_PUBLIC_COLUMNS).in('id', otherUserIds)
-      : Promise.resolve({ data: [] as any[] }),
-    conversationIds.length
-      ? db.from('messages')
+  const [profilesChunks, messagesChunks] = await Promise.all([
+    Promise.all(
+      chunk(otherUserIds, IN_FILTER_CHUNK_SIZE).map(ids =>
+        db.from('profiles').select(PROFILE_PUBLIC_COLUMNS).in('id', ids),
+      ),
+    ),
+    Promise.all(
+      chunk(conversationIds, IN_FILTER_CHUNK_SIZE).map(ids =>
+        db.from('messages')
           .select('conversation_id, content, created_at, sender_id')
-          .in('conversation_id', conversationIds)
-          .order('created_at', { ascending: false })
-      : Promise.resolve({ data: [] as any[] }),
+          .in('conversation_id', ids)
+          .order('created_at', { ascending: false }),
+      ),
+    ),
   ]);
+
+  const profilesErr = profilesChunks.find(r => r.error)?.error;
+  if (profilesErr) {
+    console.error('[inbox.getInbox] partner profiles query failed', profile.id, profilesErr);
+    throw new AppError(500, `Failed to load conversation partners: ${profilesErr.message}`);
+  }
+  const messagesErr = messagesChunks.find(r => r.error)?.error;
+  if (messagesErr) {
+    console.error('[inbox.getInbox] messages query failed', profile.id, messagesErr);
+    throw new AppError(500, `Failed to load messages: ${messagesErr.message}`);
+  }
 
   // Index profiles by id
   const profilesById: Record<string, any> = {};
-  (profilesRes.data || []).forEach((p: any) => { profilesById[p.id] = p; });
+  profilesChunks.forEach(res => (res.data || []).forEach((p: any) => { profilesById[p.id] = p; }));
 
-  // Take only the newest message per conversation from the sorted result
+  // Take only the newest message per conversation across all chunks —
+  // each chunk is independently sorted, so merge before taking the first
+  // per conversation rather than relying on cross-chunk ordering.
   const lastMsgByConv: Record<string, any> = {};
-  (messagesRes.data || []).forEach((m: any) => {
-    if (!lastMsgByConv[m.conversation_id]) lastMsgByConv[m.conversation_id] = m;
-  });
+  messagesChunks.forEach(res => (res.data || []).forEach((m: any) => {
+    const existing = lastMsgByConv[m.conversation_id];
+    if (!existing || new Date(m.created_at) > new Date(existing.created_at)) {
+      lastMsgByConv[m.conversation_id] = m;
+    }
+  }));
 
   // Stitch everything together — zero extra queries
   const convItems = conversations.map((conv: any) => {
