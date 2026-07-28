@@ -12,6 +12,7 @@ import BadgesRow from '@/components/shared/BadgesRow';
 import UsernameDisplay from '@/components/shared/UsernameDisplay';
 import SpotifyPlayer from '@/components/profile/SpotifyPlayer';
 import { Suspense } from 'react';
+import { KOFI_URL } from '@/lib/kofi';
 
 async function compressImage(file: File): Promise<File> {
   return new Promise((resolve) => {
@@ -101,7 +102,6 @@ function ProfilePageInner() {
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
   const [unblocking, setUnblocking] = useState<string | null>(null);
   const [subStatus, setSubStatus] = useState<SubStatus | null>(null);
-  const [subscribing, setSubscribing] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [justSubscribed, setJustSubscribed] = useState(false);
@@ -276,17 +276,9 @@ function ProfilePageInner() {
     }
   };
 
-  const handleSubscribe = async () => {
-    setSubscribing(true);
-    try {
-      const res = await api('/api/subscription/create-checkout', { method: 'POST' });
-      if (res.ok) {
-        const { url } = await res.json();
-        if (url) window.location.href = url;
-      }
-    } catch {}
-    finally { setSubscribing(false); }
-  };
+  // Stripe checkout entry point removed — supporting now happens via the
+  // Ko-fi link rendered below. Supporter status is granted manually via
+  // the is_supporter flag; this button no longer calls the backend.
 
   const handleManageSubscription = async () => {
     try {
@@ -456,6 +448,12 @@ function ProfilePageInner() {
                     )}
                   </div>
                 </div>
+                {/* Stripe removal (Ko-fi migration): "MANAGE BILLING" opened the
+                    Stripe customer portal and "CANCEL" called the Stripe cancel
+                    endpoint. Neither applies now — supporter status is granted
+                    manually and Ko-fi/PayPal handle billing on their own side.
+                    Backend routes are untouched (separate cleanup task), so this
+                    is commented out rather than deleted in case it needs review.
                 <div className="flex gap-2">
                   <button
                     onClick={handleManageSubscription}
@@ -472,6 +470,7 @@ function ProfilePageInner() {
                     CANCEL
                   </button>
                 </div>
+                */}
               </div>
             ) : (
               <div className="space-y-4">
@@ -488,21 +487,24 @@ function ProfilePageInner() {
                     </div>
                   ))}
                 </div>
-                <button
-                  onClick={handleSubscribe}
-                  disabled={subscribing}
-                  className="w-full flex items-center justify-center gap-2 py-3 font-black text-sm uppercase tracking-wider bg-[#FFE84D] text-[#0B0D11] hover:bg-[#FFD700] transition-colors disabled:opacity-50"
+                <a
+                  href={KOFI_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full flex items-center justify-center gap-2 py-3 font-black text-sm uppercase tracking-wider bg-[#FFE84D] text-[#0B0D11] hover:bg-[#FFD700] transition-colors"
                   style={{ fontFamily: 'Barlow Condensed, sans-serif', boxShadow: '4px 4px 0px rgba(255,232,77,0.2)' }}
                 >
                   <Crown size={16} />
-                  {subscribing ? 'REDIRECTING...' : 'GO SUPPORTER — $5/MONTH'}
-                </button>
+                  SUPPORT ON KO-FI
+                </a>
               </div>
             )}
           </div>
         </div>
 
-        {/* Cancel confirmation modal */}
+        {/* Cancel confirmation modal — paired with the commented-out CANCEL
+            button above (Stripe removal, Ko-fi migration). Left in place
+            rather than deleted; see note above.
         {showCancelConfirm && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
             <div className="bg-[#1B1814] border-2 border-[#FF4655]/40 p-6 max-w-sm w-full">
@@ -531,6 +533,7 @@ function ProfilePageInner() {
             </div>
           </div>
         )}
+        */}
 
         {/* ── Customize Profile (Cosmetics) ── */}
         <div className={section} style={{ borderTop: '3px solid #A78BFA' }}>

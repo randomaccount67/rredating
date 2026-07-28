@@ -12,6 +12,7 @@ import ChatAnalysisIcon from '@/components/chat/ChatAnalysisIcon';
 import { createClient } from '@/lib/supabase';
 import { Profile } from '@/types';
 import { PartialProfile, buildProfile } from '@/lib/utils';
+import { KOFI_URL } from '@/lib/kofi';
 
 interface ReplyTo {
   id: string;
@@ -834,9 +835,15 @@ export default function MessageThreadPage() {
               style={{ clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}
             >
               <p className="font-mono text-[10px] text-[#E8EAF0] mb-2">GIFs are a Supporter feature ✨</p>
-              <Link href="/supporter" className="font-mono text-[10px] text-[#00E5FF] hover:underline" onClick={() => setShowGifUpsell(false)}>
+              <a
+                href={KOFI_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-mono text-[10px] text-[#00E5FF] hover:underline"
+                onClick={() => setShowGifUpsell(false)}
+              >
                 Become a Supporter →
-              </Link>
+              </a>
             </div>
           )}
         </div>
