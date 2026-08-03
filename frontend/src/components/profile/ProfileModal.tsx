@@ -1,5 +1,5 @@
 'use client';
-import { X, Target, Music, Calendar } from 'lucide-react';
+import { X, Target, Music, Calendar, Flag } from 'lucide-react';
 import { Profile, getRankTier } from '@/types';
 import OnlineIndicator from '@/components/shared/OnlineIndicator';
 import BadgesRow from '@/components/shared/BadgesRow';
@@ -13,6 +13,7 @@ interface ProfileModalProps {
   onClose: () => void;
   onSendRequest: (id: string) => void;
   onPass: (id: string) => void;
+  onReport?: (id: string) => void;
   requestStatus?: 'pending' | 'matched' | 'declined' | null;
   viewOnly?: boolean;
 }
@@ -33,7 +34,7 @@ const RANK_ACCENT: Record<string, string> = {
   immortal: '#FF5070', radiant: '#FFD700',
 };
 
-export default function ProfileModal({ profile, onClose, onSendRequest, onPass, requestStatus, viewOnly = false }: ProfileModalProps) {
+export default function ProfileModal({ profile, onClose, onSendRequest, onPass, onReport, requestStatus, viewOnly = false }: ProfileModalProps) {
   const displayName = profile.riot_id
     ? `${profile.riot_id}#${profile.riot_tag}`
     : 'UNKNOWN#0000';
@@ -121,9 +122,20 @@ export default function ProfileModal({ profile, onClose, onSendRequest, onPass, 
                   )}
                 </div>
               </div>
-              <button onClick={onClose} className="text-[#4A4440] hover:text-[#F2EDE4] transition-colors flex-shrink-0 mt-0.5">
-                <X size={16} />
-              </button>
+              <div className="flex items-center gap-3 flex-shrink-0 mt-0.5">
+                {onReport && !viewOnly && (
+                  <button
+                    onClick={() => onReport(profile.id)}
+                    className="text-[#4A4440] hover:text-[#FF3C3C] transition-colors"
+                    title="Report this player"
+                  >
+                    <Flag size={15} />
+                  </button>
+                )}
+                <button onClick={onClose} className="text-[#4A4440] hover:text-[#F2EDE4] transition-colors">
+                  <X size={16} />
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -1,6 +1,6 @@
 import { db } from './db.js';
 import { cleanProfanity } from '../utils/helpers.js';
-import { badRequest, notFound, forbidden } from '../utils/errors.js';
+import { AppError, badRequest, notFound, forbidden } from '../utils/errors.js';
 import { PROFILE_PUBLIC_COLUMNS } from '../utils/columns.js';
 import { broadcast } from '../utils/broadcast.js';
 import type { Profile } from '../types/index.js';
@@ -143,10 +143,24 @@ export async function getMessages(profile: Profile, conversationId: string) {
       .order('created_at', { ascending: false })
       .limit(200),
     db.from('profiles')
-      .select(PROFILE_PUBLIC_COLUMNS)
+      .select(`${PROFILE_PUBLIC_COLUMNS}, is_banned`)
       .eq('id', otherId)
       .single(),
   ]);
+
+  // Ban status is bundled in the same query above — a failure here must not
+  // fall through to showing the conversation, so fail loudly instead of
+  // silently treating it as "not banned".
+  if (otherUserRes.error) {
+    console.error('[messages.getMessages] partner profile query failed', conversationId, otherUserRes.error);
+    throw new AppError(500, `Failed to load conversation partner: ${otherUserRes.error.message}`);
+  }
+
+  // A banned partner's conversation must not be reachable even via direct link —
+  // same opaque error as a conversation that doesn't exist.
+  if (!otherUserRes.data || otherUserRes.data.is_banned) throw notFound('Conversation not found');
+
+  const { is_banned: _isBanned, ...otherUser } = otherUserRes.data;
 
   const messages = ((messagesRes.data || []).reverse()) as RawMessage[];
 
@@ -171,7 +185,7 @@ export async function getMessages(profile: Profile, conversationId: string) {
 
   return {
     id: conversationId,
-    other_user: otherUserRes.data,
+    other_user: otherUser,
     messages: enriched,
     my_profile_id: profile.id,
     my_is_supporter: profile.is_supporter,
@@ -201,6 +215,20 @@ export async function sendMessage(
 
   const cleaned = cleanProfanity(content.trim());
   const otherId = conv.user_a === profile.id ? conv.user_b : conv.user_a;
+
+  // A banned partner's conversation must not be reachable at all — block sends
+  // the same way reads are blocked in getMessages. Fail loudly if the lookup
+  // itself errors, rather than letting the send through unchecked.
+  const { data: otherProfile, error: otherProfileErr } = await db
+    .from('profiles')
+    .select('is_banned')
+    .eq('id', otherId)
+    .single();
+  if (otherProfileErr) {
+    console.error('[messages.sendMessage] partner ban-status query failed', conversationId, otherProfileErr);
+    throw new AppError(500, `Failed to verify conversation partner: ${otherProfileErr.message}`);
+  }
+  if (!otherProfile || otherProfile.is_banned) throw notFound('Conversation not found');
 
   // Validate reply_to_id: must be a valid UUID referencing a message in this conversation.
   // If invalid or cross-conversation, silently ignore (don't block the send).

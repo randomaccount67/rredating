@@ -4,6 +4,7 @@ import { X, Flag } from 'lucide-react';
 import { useApi } from '@/lib/api';
 
 const REASONS = [
+  'Underage',
   'Harassment',
   'Inappropriate content',
   'Fake profile',
@@ -15,9 +16,10 @@ interface ReportModalProps {
   reportedProfileId: string;
   reportedName: string;
   onClose: () => void;
+  onSuccess?: () => void;
 }
 
-export default function ReportModal({ reportedProfileId, reportedName, onClose }: ReportModalProps) {
+export default function ReportModal({ reportedProfileId, reportedName, onClose, onSuccess }: ReportModalProps) {
   const api = useApi();
   const [reason, setReason] = useState('');
   const [details, setDetails] = useState('');
@@ -40,6 +42,7 @@ export default function ReportModal({ reportedProfileId, reportedName, onClose }
         return;
       }
       setDone(true);
+      onSuccess?.();
     } catch {
       setError('Network error');
     } finally {

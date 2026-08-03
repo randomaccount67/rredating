@@ -188,8 +188,11 @@ export async function getPublicProfile(profileId: string) {
     .from('profiles')
     .select(PROFILE_PUBLIC_COLUMNS)
     .eq('id', profileId)
+    .eq('is_banned', false)
     .single();
 
+  // Same opaque 404 whether the profile doesn't exist or is banned — a banned
+  // profile must not be reachable even via a direct link.
   if (error || !data) throw notFound('Profile not found');
   return data;
 }

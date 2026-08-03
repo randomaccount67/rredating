@@ -6,6 +6,7 @@ import { MessageSquare, UserCheck, Clock, Users } from 'lucide-react';
 import VerifiedBadge from '@/components/shared/VerifiedBadge';
 import { createClient } from '@/lib/supabase';
 import ProfileModal from '@/components/profile/ProfileModal';
+import ReportModal from '@/components/shared/ReportModal';
 import { Profile } from '@/types';
 import { PartialProfile, buildProfile } from '@/lib/utils';
 
@@ -37,6 +38,7 @@ export default function InboxPage() {
   });
   const [myProfileId, setMyProfileId] = useState<string | null>(null);
   const [viewingProfile, setViewingProfile] = useState<Profile | null>(null);
+  const [reportingProfile, setReportingProfile] = useState<Profile | null>(null);
   const [respondingIds, setRespondingIds] = useState<Set<string>>(new Set());
 
   // Fetch myProfileId directly from auth on mount — don't wait for the inbox
@@ -395,7 +397,22 @@ export default function InboxPage() {
           onClose={() => setViewingProfile(null)}
           onSendRequest={() => {}}
           onPass={() => {}}
+          onReport={() => setReportingProfile(viewingProfile)}
           requestStatus="matched"
+        />
+      )}
+
+      {/* Report modal — stacks on top of the profile modal */}
+      {reportingProfile && (
+        <ReportModal
+          reportedProfileId={reportingProfile.id}
+          reportedName={reportingProfile.riot_id ? `${reportingProfile.riot_id}#${reportingProfile.riot_tag}` : 'UNKNOWN'}
+          onClose={() => setReportingProfile(null)}
+          onSuccess={() => {
+            // If the reported user has a pending duo request, decline it too so it doesn't linger in the inbox
+            const pending = requests.find(r => r.user.id === reportingProfile.id && r.status === 'pending');
+            if (pending) handleDecline(pending.id);
+          }}
         />
       )}
     </div>

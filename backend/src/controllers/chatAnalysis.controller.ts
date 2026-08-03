@@ -99,6 +99,7 @@ export const getLeaderboard = wrap(async (_req: Request, res: Response) => {
   const { data } = await db
     .from('profiles')
     .select('riot_id, riot_tag, texting_rank, texting_rr, avatar_url')
+    .eq('is_banned', false)
     .gte('texting_rr', 2100)
     .order('texting_rr', { ascending: false })
     .limit(50);

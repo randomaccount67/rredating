@@ -34,7 +34,7 @@ export async function getInbox(profile: Profile) {
     // .in()-style volume problem, just via an embedded resource instead of
     // an explicit filter list.
     db.from('match_requests')
-      .select('id, from_user, status, created_at, profiles!match_requests_from_user_fkey(id, riot_id, riot_tag, avatar_url, current_rank, peak_rank, role, agents, music_tags, about, gender, region, favorite_artist, is_online, created_at, age)')
+      .select('id, from_user, status, created_at, profiles!match_requests_from_user_fkey(id, riot_id, riot_tag, avatar_url, current_rank, peak_rank, role, agents, music_tags, about, gender, region, favorite_artist, is_online, created_at, age, is_banned)')
       .eq('to_user', profile.id)
       .eq('status', 'pending')
       .order('created_at', { ascending: false })
@@ -75,14 +75,22 @@ export async function getInbox(profile: Profile) {
   const lastSeenByConv: Record<string, string> = {};
   viewersRes.data?.forEach(v => { lastSeenByConv[v.conversation_id] = v.last_seen_at; });
 
-  // Build request items
-  const requestItems = (requestsRes.data || []).map((r: any) => ({
-    id: r.id,
-    type: 'match_request' as const,
-    user: r.profiles,
-    status: r.status,
-    created_at: r.created_at,
-  }));
+  // Build request items — a banned sender's request must not surface here.
+  // No outgoing-requests list exists anywhere in this API (from_user=profile.id
+  // rows are never joined to profile data outside the browse exclude-set), so
+  // there is nothing else to filter for the "outgoing" side of Duo Requests.
+  const requestItems = (requestsRes.data || [])
+    .filter((r: any) => r.profiles && !r.profiles.is_banned)
+    .map((r: any) => {
+      const { is_banned: _isBanned, ...user } = r.profiles;
+      return {
+        id: r.id,
+        type: 'match_request' as const,
+        user,
+        status: r.status,
+        created_at: r.created_at,
+      };
+    });
 
   // Matched user set
   const matchedUserIds = new Set<string>();
@@ -106,7 +114,7 @@ export async function getInbox(profile: Profile) {
   const [profilesChunks, messagesChunks] = await Promise.all([
     Promise.all(
       chunk(otherUserIds, IN_FILTER_CHUNK_SIZE).map(ids =>
-        db.from('profiles').select(PROFILE_PUBLIC_COLUMNS).in('id', ids),
+        db.from('profiles').select(`${PROFILE_PUBLIC_COLUMNS}, is_banned`).in('id', ids),
       ),
     ),
     Promise.all(
@@ -130,9 +138,14 @@ export async function getInbox(profile: Profile) {
     throw new AppError(500, `Failed to load messages: ${messagesErr.message}`);
   }
 
-  // Index profiles by id
+  // Index profiles by id — a banned partner is dropped entirely so their
+  // conversation collapses to c.user === null and gets filtered out below.
   const profilesById: Record<string, any> = {};
-  profilesChunks.forEach(res => (res.data || []).forEach((p: any) => { profilesById[p.id] = p; }));
+  profilesChunks.forEach(res => (res.data || []).forEach((p: any) => {
+    if (p.is_banned) return;
+    const { is_banned: _isBanned, ...rest } = p;
+    profilesById[p.id] = rest;
+  }));
 
   // Take only the newest message per conversation across all chunks —
   // each chunk is independently sorted, so merge before taking the first

@@ -81,7 +81,7 @@ export default function LandingPage() {
       icon: <Lock size={22} />,
       color: '#FFE84D',
       title: 'Your Data, Your Choice',
-      desc: 'Delete your account anytime in your Account Settings. Get out while you still can.',
+      desc: 'Delete your account anytime in your account settings. Get out while you still can.',
     },
     {
       icon: <Users size={22} />,
